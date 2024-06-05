@@ -2,56 +2,92 @@ IaC (Infrastructure as Code) を使用して AWS 環境を構築し、CI/CD パ�
 
 ## 1. AWS 環境の IaC (Infrastructure as Code)
 
-AWS CloudFormationを使用して、AWS 環境のインフラストラクチャをコードとして定義および管理します。尚Lambdaの実装は別のCloudFormationを提供するので、必要に応じて結合してください。
-
-以下は、AWS 環境の構築を図式化したものです。
+#### ブロック図
 
 ```mermaid
 graph LR
-    A[AWS CloudFormation] --> B(VPC)
-    A --> C(インターネットゲートウェイ)
-    A --> D(サブネット)
-    A --> E(セキュリティグループ)
-    A --> F(RDS - PostgreSQL)
-    A --> G(Lambda 関数)
-    A --> H(API Gateway)
-    B --> D
-    C --> B
-    D --> E
-    E --> F
-    E --> G
+    A[AWS CloudFormation] --> B[VPC]
+    A --> C[InternetGateway]
+    A --> D[PublicSubnet1]
+    A --> E[WebSecurityGroup]
+    A --> F[RDSInstance]
+    A --> G[LambdaExecutionRole]
+    A --> H[MainLambdaFunction]
+    A --> I[AllocationLambdaFunction]
+    A --> J[ModelsLambdaLayer]
+    A --> K[DatabaseLambdaLayer]
+    A --> L[SchemasLambdaLayer]
+    A --> M[APIGateway]
+    A --> N[OrdersResource]
+    A --> O[InventoriesResource]
+    A --> P[AllocateResource]
+    A --> Q[AllocationResultsResource]
+    A --> R[OrdersPostMethod]
+    A --> S[OrdersGetMethod]
+    A --> T[InventoriesPostMethod]
+    A --> U[InventoriesGetMethod]
+    A --> V[AllocatePostMethod]
+    A --> W[AllocationResultsGetMethod]
+
     G --> H
-    H --> I((API エンドポイント))
+    G --> I
+
+    J --> H
+    J --> I
+
+    K --> H
+    K --> I
+
+    L --> H
+    L --> I
+
+    M --> N
+    M --> O
+    M --> P
+    M --> Q
+
+    N --> R
+    N --> S
+
+    O --> T
+    O --> U
+
+    P --> V
+
+    Q --> W
+
+    X[DBPassword] --> F
+    X --> H
+    X --> I
 ```
 
-1. AWS CloudFormation テンプレートが環境のリソースを定義します。
+ブロック図の説明:
 
-2. VPC (Virtual Private Cloud) が作成されます。
+1. AWS CloudFormationは、テンプレートに定義されたすべてのリソースを作成・管理します。
 
-3. インターネットゲートウェイが作成され、VPC に接続されます。
+2. VPC、InternetGateway、PublicSubnet1、WebSecurityGroupは、ネットワーク関連のリソースです。
 
-4. サブネットが VPC 内に作成されます。
+3. RDSInstanceは、PostgreSQLデータベースを表します。DBPasswordパラメータを使用してマスターユーザーのパスワードを設定します。
 
-5. セキュリティグループが作成され、サブネットに関連付けられます。
+4. LambdaExecutionRoleは、Lambda関数の実行に必要なIAMロールです。MainLambdaFunctionとAllocationLambdaFunctionは、このロールを使用します。
 
-6. RDS (PostgreSQL) インスタンスが作成され、セキュリティグループによって保護されます。
+5. MainLambdaFunctionは、メインのLambda関数であり、APIエンドポイントを提供します。この関数は、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
 
-7. Lambda 関数が作成され、セキュリティグループによって保護されます。←　詳細化は下記に記述
+6. AllocationLambdaFunctionは、在庫の割り当てを行うLambda関数です。この関数も、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
 
-8. API Gateway が作成され、Lambda 関数と統合されます。
+7. ModelsLambdaLayer、DatabaseLambdaLayer、SchemasLambdaLayerは、それぞれモデル、データベース接続、スキーマを定義するLambdaレイヤーです。
 
-9. API エンドポイントが公開され、クライアントからアクセス可能になります。
+8. APIGatewayは、RESTful APIを提供します。OrdersResource、InventoriesResource、AllocateResource、AllocationResultsResourceは、APIのリソースを表します。
 
-この図は、AWS CloudFormation を使用して環境のリソースを定義し、それらのリソースが相互に関連付けられる方法を示しています。VPC とサブネットが作成され、セキュリティグループによってリソースが保護されます。RDS と Lambda 関数がデータベースとアプリケーションロジックを提供し、API Gateway がクライアントからのリクエストを受け付けます。
+9. 各リソースには、対応するHTTPメソッド（POST、GET）が定義されています。これらのメソッドは、Lambda関数を統合して、リクエストを処理します。
 
-これらの図を組み合わせることで、インフラストラクチャとCI/CDパイプラインの全体像を把握することができます。AWS CloudFormation はインフラストラクチャをコードとして管理し、AWS CodePipeline、AWS CodeBuild、AWS CodeArtifact はアプリケーションのビルド、テスト、デプロイを自動化します。
+10. DBPasswordパラメータは、RDSInstanceとLambda関数に渡されます。
 
+このブロック図は、更新されたCloudFormationテンプレートのリソースとその関係を視覚的に表現しています。Lambda関数は必要なLambdaレイヤーを使用し、APIゲートウェイを介してHTTPリクエストを受け取ります。データベースとLambda関数は、DBPasswordパラメータを使用して設定されます。
 
-
+#### AWS CloudFormationテンプレート
 
 ```yaml
-# AWS CloudFormation テンプレート例
-
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Inventory Allocation System Infrastructure'
 
@@ -122,240 +158,6 @@ Resources:
         - !Ref DBSecurityGroup
 
   # Lambda 関数
-  AllocationLambdaFunction:
-    Type: 'AWS::Lambda::Function'
-    Properties:
-      FunctionName: 'inventory-allocation-function'
-      Runtime: 'python3.8'
-      Handler: 'main.lambda_handler'
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Code:
-        S3Bucket: 'inventory-allocation-code-bucket'
-        S3Key: 'lambda_function.zip'
-      Environment:
-        Variables:
-          DB_HOST: !GetAtt RDSInstance.Endpoint.Address
-          DB_PORT: !GetAtt RDSInstance.Endpoint.Port
-          DB_NAME: 'inventory_allocation_db'
-          DB_USER: 'admin'
-          DB_PASSWORD: !Ref DBPassword
-
-  # API Gateway
-  APIGateway:
-    Type: 'AWS::ApiGateway::RestApi'
-    Properties:
-      Name: 'Inventory Allocation API'
-      Description: 'API for Inventory Allocation System'
-
-  # API Gateway リソース
-  OrdersResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: 'orders'
-
-  InventoriesResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: 'inventories'
-
-  AllocateResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: 'allocate'
-
-  AllocationResultsResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: 'allocation-results'
-
-  # API Gateway メソッド
-  # Orders リソースのメソッド
-  OrdersPostMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref OrdersResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-  OrdersGetMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref OrdersResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-  # Inventories リソースのメソッド
-  InventoriesPostMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref InventoriesResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-  InventoriesGetMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref InventoriesResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-  # Allocate リソースのメソッド
-  AllocatePostMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref AllocateResource
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-  # AllocationResults リソースのメソッド
-  AllocationResultsGetMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref AllocationResultsResource
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AllocationLambdaFunction.Arn}/invocations'
-
-# パラメータ
-Parameters:
-  DBPassword:
-    Type: String
-    NoEcho: true
-    Description: 'Password for the RDS database'
-```
-
-上記の AWS CloudFormation テンプレートは、在庫引当システムのインフラストラクチャを定義しています。主要なリソースとして、VPC、サブネット、セキュリティグループ、RDS（PostgreSQL）、Lambda 関数、API Gateway が含まれています。
-
-
-以下は、提供された5つのプログラムをAWS Lambdaで実装するためのAWS CloudFormationテンプレートです。
-このCloudFormationテンプレートでは、以下のリソースが定義されています。
-
-1. `LambdaExecutionRole`: Lambda関数の実行に必要なIAMロールを定義します。
-
-2. `MainLambdaFunction`: メインのLambda関数を定義します。この関数は、FastAPIを使用してAPIエンドポイントを提供し、注文の作成、在庫の作成、在庫の割り当てを処理します。
-
-3. `AllocationLambdaFunction`: 在庫の割り当てを行うLambda関数を定義します。この関数は、`allocation.py`ファイルの`allocate_inventory`関数を呼び出します。
-
-4. `ModelsLambdaLayer`: モデルを定義するLambdaレイヤーを作成します。このレイヤーには、`models.py`ファイルの内容が含まれます。
-
-5. `DatabaseLambdaLayer`: データベース接続を設定するLambdaレイヤーを作成します。このレイヤーには、`database.py`ファイルの内容が含まれます。
-
-6. `SchemasLambdaLayer`: スキーマを定義するLambdaレイヤーを作成します。このレイヤーには、`schemas.py`ファイルの内容が含まれます。
-
-このテンプレートでは、データベースの接続情報はパラメータとして定義され、Lambda関数の環境変数として設定されます。
-
-Lambda関数のコードは、インラインで定義されています。実際のデプロイメントでは、コードをZIPファイルとしてアップロードすることをお勧めします。
-
-このテンプレートを使用することで、提供された5つのプログラムをAWS Lambda上で実装し、APIエンドポイントを提供することができます。CloudFormationスタックを作成する際に、必要なパラメータを指定してください。
-
-以下は、提供されたAWS CloudFormationテンプレートの構成図です。
-
-1. AWS CloudFormationは、テンプレートに定義されたリソースを作成・管理します。
-
-2. LambdaExecutionRoleは、Lambda関数の実行に必要なIAMロールです。MainLambdaFunctionとAllocationLambdaFunctionは、このロールを使用します。
-
-3. MainLambdaFunctionは、メインのLambda関数であり、APIエンドポイントを提供します。この関数は、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
-
-4. AllocationLambdaFunctionは、在庫の割り当てを行うLambda関数です。この関数も、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
-
-5. ModelsLambdaLayerは、モデルを定義するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。
-
-6. DatabaseLambdaLayerは、データベース接続を設定するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。このレイヤーは、DBHost、DBPort、DBName、DBUser、およびDBPasswordパラメータを使用してデータベース接続を設定します。
-
-7. SchemasLambdaLayerは、スキーマを定義するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。
-
-8. DBHost、DBPort、DBName、DBUser、およびDBPasswordは、データベース接続情報を指定するCloudFormationテンプレートのパラメータです。これらの値は、DatabaseLambdaLayerに渡されます。
-
-この構成図は、AWS CloudFormationテンプレートで定義されたリソースとその関係を視覚的に表現しています。Lambda関数は、必要なLambdaレイヤーを使用し、LambdaレイヤーはCloudFormationパラメータから設定情報を受け取ります。
-
-```mermaid
-graph LR
-    A[AWS CloudFormation] --> B[LambdaExecutionRole]
-    A --> C[MainLambdaFunction]
-    A --> D[AllocationLambdaFunction]
-    A --> E[ModelsLambdaLayer]
-    A --> F[DatabaseLambdaLayer]
-    A --> G[SchemasLambdaLayer]
-
-    B --> C
-    B --> D
-
-    E --> C
-    E --> D
-
-    F --> C
-    F --> D
-
-    G --> C
-    G --> D
-
-    H[DBHost] --> F
-    I[DBPort] --> F
-    J[DBName] --> F
-    K[DBUser] --> F
-    L[DBPassword] --> F
-```
-
-AWS CloudFormation - Lambda
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS CloudFormation template for inventory allocation system'
-
-Parameters:
-  DBHost:
-    Type: String
-    Description: 'Database host'
-  DBPort:
-    Type: String
-    Description: 'Database port'
-  DBName:
-    Type: String
-    Description: 'Database name'
-  DBUser:
-    Type: String
-    Description: 'Database user'
-  DBPassword:
-    Type: String
-    Description: 'Database password'
-
-Resources:
   LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -385,7 +187,7 @@ Resources:
     Type: 'AWS::Lambda::Function'
     Properties:
       FunctionName: 'MainFunction'
-      Runtime: 'python3.8'
+      Runtime: 'python3.9'
       Handler: 'main.handler'
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
@@ -425,17 +227,17 @@ Resources:
               # Lambda handler logic
       Environment:
         Variables:
-          DB_HOST: !Ref DBHost
-          DB_PORT: !Ref DBPort
-          DB_NAME: !Ref DBName
-          DB_USER: !Ref DBUser
+          DB_HOST: !GetAtt RDSInstance.Endpoint.Address
+          DB_PORT: !GetAtt RDSInstance.Endpoint.Port
+          DB_NAME: 'inventory_allocation_db'
+          DB_USER: 'admin'
           DB_PASSWORD: !Ref DBPassword
 
   AllocationLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
       FunctionName: 'AllocationFunction'
-      Runtime: 'python3.8'
+      Runtime: 'python3.9'
       Handler: 'allocation.allocate_inventory'
       Role: !GetAtt LambdaExecutionRole.Arn
       Code:
@@ -533,17 +335,94 @@ Resources:
 
           class AllocationResultResponse(BaseModel):
               # AllocationResultResponse schema
+
+  # API Gateway
+  APIGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'Inventory Allocation API'
+      Description: 'API for Inventory Allocation System'
+
+  # API Gateway リソース
+  OrdersResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: 'orders'
+
+  InventoriesResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: 'inventories'
+
+  AllocateResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: 'allocate'
+
+  AllocationResultsResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: 'allocation-results'
+
+  # API Gateway メソッド
+  # Orders リソースのメソッド
+  OrdersPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref OrdersResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+
+  OrdersGetMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref OrdersResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+
+  # Inventories リソースのメソッド
+  InventoriesPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !Ref InventoriesResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+
+  InventoriesGetMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref APIGateway
+      ResourceId: !
 ```
-
-
-
-
 
 
 
 ## 2. CI/CD パイプラインの IaC
 
-以下は、CI/CD パイプラインの構成を図式化したものです。
+#### CI/CD パイプラインの構成図
 
 ```mermaid
 graph LR
