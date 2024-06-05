@@ -1,46 +1,39 @@
-# パラメータ記述サンプル:
-#   DBHost: 'your-db-host.example.com'
-#   DBPort: '5432'
-#   DBName: 'your-db-name'
-#   DBUser: 'your-db-user'
-#   DBPassword: 'your-db-password'
-
 AWSTemplateFormatVersion: '2010-09-09'
-Description: '在庫割当システムのAWS CloudFormationテンプレート'
+Description: 'FastAPI application on AWS Lambda'
 
 Parameters:
-  DBHost:
+  ParameterFilePath:
     Type: String
-    Description: 'データベースのホスト名'
-  DBPort:
-    Type: String
-    Description: 'データベースのポート番号'
-  DBName:
-    Type: String
-    Description: 'データベース名'
-  DBUser:
-    Type: String
-    Description: 'データベースのユーザー名'
-  DBPassword:
-    Type: String
-    NoEcho: true
-    Description: 'データベースのパスワード'
+    Default: 's3://my-parameter-bucket/LambdaParameters.json'
 
 Resources:
+  FastAPIFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'FastAPIFunction'
+      Runtime: 'python3.8'
+      Handler: 'main.handler'
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Environment:
+        Variables:
+          PARAMETER_FILE_PATH: !Ref ParameterFilePath
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      FunctionRegion: 'ap-northeast-1'
+
   LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: 'LambdaExecutionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
             Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - 'sts:AssumeRole'
-      Path: '/'
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
       Policies:
         - PolicyName: 'LambdaExecutionPolicy'
           PolicyDocument:
@@ -52,59 +45,58 @@ Resources:
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource: !Sub 'arn:aws:s3:::my-parameter-bucket/LambdaParameters.json'
 
-  MainLambdaFunction:
-    Type: 'AWS::Lambda::Function'
+  APIGateway:
+    Type: 'AWS::ApiGateway::RestApi'
     Properties:
-      FunctionName: 'MainFunction'
-      Runtime: 'python3.9'
-      Handler: 'main.handler'
-      Role: !GetAtt LambdaExecutionRole.Arn  # LambdaExecutionRoleリソースのARN属性を取得
-      Code:
-        ZipFile: |
-          # メインのLambda関数のコード
-      Environment:
-        Variables:
-          DB_HOST: !Ref DBHost  # DBHostパラメータの値を参照
-          DB_PORT: !Ref DBPort  # DBPortパラメータの値を参照
-          DB_NAME: !Ref DBName  # DBNameパラメータの値を参照
-          DB_USER: !Ref DBUser  # DBUserパラメータの値を参照
-          DB_PASSWORD: !Ref DBPassword  # DBPasswordパラメータの値を参照
+      Name: 'FastAPIGateway'
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+        VpcEndpointIds: []
 
-  AllocationLambdaFunction:
-    Type: 'AWS::Lambda::Function'
+  APIGatewayAuthorizer:
+    Type: 'AWS::ApiGateway::Authorizer'
     Properties:
-      FunctionName: 'AllocationFunction'
-      Runtime: 'python3.9'
-      Handler: 'allocation.allocate_inventory'
-      Role: !GetAtt LambdaExecutionRole.Arn  # LambdaExecutionRoleリソースのARN属性を取得
-      Code:
-        ZipFile: |
-          # 在庫割当のLambda関数のコード
+      Name: 'CognitoAuthorizer'
+      Type: 'COGNITO_USER_POOLS'
+      ProviderARNs:
+        - !Ref CognitoUserPoolArn
+      RestApiId: !Ref APIGateway
+      IdentitySource: 'method.request.header.Authorization'
 
-  ModelsLambdaLayer:
-    Type: 'AWS::Lambda::LayerVersion'
+  APIGatewayResource:
+    Type: 'AWS::ApiGateway::Resource'
     Properties:
-      LayerName: 'ModelsLayer'
-      Description: 'モデル用のレイヤー'
-      Content:
-        ZipFile: |
-          # モデルのコード
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: '{proxy+}'
+      RestApiId: !Ref APIGateway
 
-  DatabaseLambdaLayer:
-    Type: 'AWS::Lambda::LayerVersion'
+  APIGatewayMethod:
+    Type: 'AWS::ApiGateway::Method'
     Properties:
-      LayerName: 'DatabaseLayer'
-      Description: 'データベース用のレイヤー'
-      Content:
-        ZipFile: |
-          # データベースのコード
+      HttpMethod: ANY
+      ResourceId: !Ref APIGatewayResource
+      RestApiId: !Ref APIGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref APIGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/${FastAPIFunction.Arn}/invocations'
 
-  SchemasLambdaLayer:
-    Type: 'AWS::Lambda::LayerVersion'
+  APIGatewayDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - APIGatewayMethod
     Properties:
-      LayerName: 'SchemasLayer'
-      Description: 'スキーマ用のレイヤー'
-      Content:
-        ZipFile: |
-          # スキーマのコード
+      RestApiId: !Ref APIGateway
+      StageName: !Ref APIGatewayStageName
+
+Outputs:
+  APIGatewayInvokeURL:
+    Value: !Sub 'https://${APIGateway}.execute-api.ap-northeast-1.amazonaws.com/${APIGatewayStageName}'

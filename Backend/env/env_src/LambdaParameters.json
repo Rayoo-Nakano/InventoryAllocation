@@ -1,0 +1,8 @@
+{
+    "CognitoUserPoolArn": "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_abcdefghi",
+    "CognitoUserPoolClientId": "abcdefghijklmnopqrstuvwxy",
+    "DatabaseSecretArn": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:MyDatabaseSecret-abcdef",
+    "LambdaCodeBucket": "my-lambda-code-bucket",
+    "LambdaCodeKey": "fastapi-app/lambda_function.zip",
+    "APIGatewayStageName": "prod"
+  }
