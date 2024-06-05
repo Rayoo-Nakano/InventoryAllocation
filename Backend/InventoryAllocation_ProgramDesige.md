@@ -94,106 +94,80 @@ graph LR
 
 
 ### 8. シーケンス図
+このシーケンス図は、利用者とシステム内の各コンポーネント間のやり取りを示しています。
 
-このシーケンス図は、フロントエンドアプリケーションとバックエンドのAPIおよびデータベースの間のインタラクションを示しています。
+1. 利用者は、Mainを介して認証を行います。Mainは、Schemasを使用してトークンのペイロードを検証し、認証結果を利用者に返します。
 
-    1. フロントエンドアプリケーションは、受注データを`/orders`エンドポイントに送信します。APIは受注データを検証し、データベースに保存します。
+2. 利用者は、Mainを介して注文を作成します。Mainは、Schemasを使用して注文リクエストを検証し、Modelsを使用して注文オブジェクトを作成します。注文はDatabaseに保存され、レスポンスが利用者に返されます。
 
-    2. フロントエンドアプリケーションは、在庫データを`/inventories`エンドポイントに送信します。APIは在庫データを検証し、データベースに保存します。
+3. 利用者は、Mainを介して在庫を作成します。Mainは、Schemasを使用して在庫リクエストを検証し、Modelsを使用して在庫オブジェクトを作成します。在庫はDatabaseに保存され、レスポンスが利用者に返されます。
 
-    3. フロントエンドアプリケーションは、`/allocate`エンドポイントに在庫引当のリクエストを送信します。APIはリクエストを検証し、`allocation.py`モジュールを呼び出して在庫引当処理を実行します。`allocation.py`は、`models.py`と`database.py`を使用して、必要なデータを取得し、引当ロジックを適用します。引当結果は、データベースに保存されます。
+4. 利用者は、Mainを介して在庫の割り当てを行います。Mainは、Schemasを使用して割り当てリクエストを検証し、Allocationを呼び出して在庫の割り当てを行います。Allocationは、Modelsを使用して注文と在庫を取得し、割り当て結果を作成します。割り当て結果はDatabaseに保存され、Schemasを使用してシリアライズされ、レスポンスが利用者に返されます。
 
-    4. フロントエンドアプリケーションは、`/orders`エンドポイントにGETリクエストを送信して、受注データを取得します。APIは`models.py`と`database.py`を使用してデータを取得し、`schemas.py`を使用してシリアライズされた応答を返します。
+5. 利用者は、Mainを介して注文を取得します。Mainは、Modelsを使用して注文を取得し、Schemasを使用してシリアライズされた注文をレスポンスとして利用者に返します。
 
-    5. フロントエンドアプリケーションは、`/inventories`エンドポイントにGETリクエストを送信して、在庫データを取得します。APIは`models.py`と`database.py`を使用してデータを取得し、`schemas.py`を使用してシリアライズされた応答を返します。
+6. 利用者は、Mainを介して在庫を取得します。Mainは、Modelsを使用して在庫を取得し、Schemasを使用してシリアライズされた在庫をレスポンスとして利用者に返します。
 
-    6. フロントエンドアプリケーションは、`/allocation-results`エンドポイントにGETリクエストを送信して、引当結果を取得します。APIは`models.py`と`database.py`を使用してデータを取得し、`schemas.py`を使用してシリアライズされた応答を返します。
+このシーケンス図は、システムの各コンポーネントがどのように相互作用するかを示しています。利用者とMainの間でリクエストとレスポンスのやり取りが行われ、Mainは他のコンポーネントと連携して必要な処理を行います。
 
-このシーケンス図は、アプリケーションの主要なフローを示しています。実際のアプリケーションでは、エラーハンドリング、認証、認可などの追加の手順が含まれる場合があります。
+
 ```mermaid
 sequenceDiagram
-    participant Frontend
-    participant API (main.py)
-    participant allocation.py
-    participant models.py
-    participant database.py
-    participant schemas.py
+    participant User
+    participant Main
+    participant Allocation
+    participant Models
     participant Database
+    participant Schemas
 
-    Frontend->>+API (main.py): POST /orders
-    API (main.py)->>+schemas.py: Validate order data
-    schemas.py-->>-API (main.py): Validated order data
-    API (main.py)->>+models.py: Create Order object
-    models.py-->>-API (main.py): Order object
-    API (main.py)->>+database.py: Save Order to database
-    database.py->>+Database: Insert Order
-    Database-->>-database.py: Order saved
-    database.py-->>-API (main.py): Order saved
-    API (main.py)-->>-Frontend: Order created response
+    User->>Main: Authenticate
+    Main->>Schemas: Validate token payload
+    Main->>User: Authentication result
 
-    Frontend->>+API (main.py): POST /inventories
-    API (main.py)->>+schemas.py: Validate inventory data
-    schemas.py-->>-API (main.py): Validated inventory data
-    API (main.py)->>+models.py: Create Inventory object
-    models.py-->>-API (main.py): Inventory object
-    API (main.py)->>+database.py: Save Inventory to database
-    database.py->>+Database: Insert Inventory
-    Database-->>-database.py: Inventory saved
-    database.py-->>-API (main.py): Inventory saved
-    API (main.py)-->>-Frontend: Inventory created response
+    User->>Main: Create order
+    Main->>Schemas: Validate order request
+    Main->>Models: Create order object
+    Models->>Database: Save order
+    Database->>Main: Order created
+    Main->>User: Order response
 
-    Frontend->>+API (main.py): POST /allocate
-    API (main.py)->>+schemas.py: Validate allocation request
-    schemas.py-->>-API (main.py): Validated allocation request
-    API (main.py)->>+allocation.py: Allocate inventory
-    allocation.py->>+models.py: Retrieve orders and inventories
-    models.py->>+database.py: Get orders and inventories from database
-    database.py->>+Database: Query orders and inventories
-    Database-->>-database.py: Orders and inventories data
-    database.py-->>-models.py: Orders and inventories data
-    models.py-->>-allocation.py: Orders and inventories data
-    allocation.py->>allocation.py: Perform allocation logic
-    allocation.py->>+models.py: Create AllocationResult objects
-    models.py-->>-allocation.py: AllocationResult objects
-    allocation.py->>+database.py: Save AllocationResults to database
-    database.py->>+Database: Insert AllocationResults
-    Database-->>-database.py: AllocationResults saved
-    database.py-->>-allocation.py: AllocationResults saved
-    allocation.py-->>-API (main.py): Allocation completed
-    API (main.py)-->>-Frontend: Allocation response
+    User->>Main: Create inventory
+    Main->>Schemas: Validate inventory request
+    Main->>Models: Create inventory object
+    Models->>Database: Save inventory
+    Database->>Main: Inventory created
+    Main->>User: Inventory response
 
-    Frontend->>+API (main.py): GET /orders
-    API (main.py)->>+models.py: Retrieve orders
-    models.py->>+database.py: Get orders from database
-    database.py->>+Database: Query orders
-    Database-->>-database.py: Orders data
-    database.py-->>-models.py: Orders data
-    models.py-->>-API (main.py): Orders data
-    API (main.py)->>+schemas.py: Serialize orders
-    schemas.py-->>-API (main.py): Serialized orders
-    API (main.py)-->>-Frontend: Orders response
+    User->>Main: Allocate inventory
+    Main->>Schemas: Validate allocation request
+    Main->>Allocation: Allocate inventory
+    Allocation->>Models: Get orders and inventories
+    Models->>Database: Retrieve orders and inventories
+    Database->>Models: Orders and inventories
+    Models->>Allocation: Orders and inventories
+    Allocation->>Models: Create allocation results
+    Models->>Database: Save allocation results
+    Database->>Allocation: Allocation results saved
+    Allocation->>Main: Allocation results
+    Main->>Schemas: Serialize allocation results
+    Schemas->>Main: Serialized allocation results
+    Main->>User: Allocation response
 
-    Frontend->>+API (main.py): GET /inventories
-    API (main.py)->>+models.py: Retrieve inventories
-    models.py->>+database.py: Get inventories from database
-    database.py->>+Database: Query inventories
-    Database-->>-database.py: Inventories data
-    database.py-->>-models.py: Inventories data
-    models.py-->>-API (main.py): Inventories data
-    API (main.py)->>+schemas.py: Serialize inventories
-    schemas.py-->>-API (main.py): Serialized inventories
-    API (main.py)-->>-Frontend: Inventories response
+    User->>Main: Get orders
+    Main->>Models: Retrieve orders
+    Models->>Database: Retrieve orders
+    Database->>Models: Orders
+    Models->>Schemas: Serialize orders
+    Schemas->>Main: Serialized orders
+    Main->>User: Orders response
 
-    Frontend->>+API (main.py): GET /allocation-results
-    API (main.py)->>+models.py: Retrieve allocation results
-    models.py->>+database.py: Get allocation results from database
-    database.py->>+Database: Query allocation results
-    Database-->>-database.py: Allocation results data
-    database.py-->>-models.py: Allocation results data
-    models.py-->>-API (main.py): Allocation results data
-    API (main.py)->>+schemas.py: Serialize allocation results
-    schemas.py-->>-API (main.py): Serialized allocation results
-    API (main.py)-->>-Frontend: Allocation results response
+    User->>Main: Get inventories
+    Main->>Models: Retrieve inventories
+    Models->>Database: Retrieve inventories
+    Database->>Models: Inventories
+    Models->>Schemas: Serialize inventories
+    Schemas->>Main: Serialized inventories
+    Main->>User: Inventories response
 ```
 
 ### 9. エラーハンドリング
@@ -202,8 +176,21 @@ sequenceDiagram
    - サーバー内部エラー：500 Internal Server Error
 
 ### 10. セキュリティ
-   - APIエンドポイントにはAWS Lambdaの認証機能を適用する。
-   - データベースへのアクセスはIAMロールで制限する。
+AWS Cognitoを利用して、APIエンドポイントへのアクセス時にユーザー認証を実施する。
+API Gatewayにカスタム認可者を設定し、AWS Cognitoのユーザープールとの連携を行う。
+ユーザーがAPIにアクセスする際は、まずAWS Cognitoでユーザー認証を行い、有効なJWTトークンを取得する必要がある。
+API Gatewayは、リクエストヘッダーに含まれるJWTトークンを検証し、有効な場合にのみAPIエンドポイントへのアクセスを許可する。
+JWTトークンには、ユーザーの識別情報や権限情報を含め、細粒度のアクセス制御を行う。
+データベースへのアクセスはIAMロールで制限し、最小権限の原則に従ってアクセス権を設定する。
+これにより、APIエンドポイントへのアクセスにはユーザー認証が必要となり、認証されたユーザーのみがAPIを利用できるようになります。また、JWTトークンを使用することで、ユーザーの識別情報や権限情報に基づいたアクセス制御が可能になります。
+
+AWS Cognitoとの連携には、以下の手順が必要です。
+
+AWS Cognitoでユーザープールを作成し、アプリクライアントを設定する。
+API Gatewayにカスタム認可者を設定し、AWS Cognitoのユーザープールとの連携を行う。
+アプリケーションでは、AWS Cognitoのユーザープールに対してユーザー登録とログインを行い、JWTトークンを取得する。
+APIリクエストを送信する際は、取得したJWTトークンをリクエストヘッダーに含めて送信する。
+API Gatewayは、リクエストヘッダーに含まれるJWTトークンを検証し、有効な場合にのみAPIエンドポイントへのアクセスを許可する。
 
 ### 11. テスト
    - ユニットテスト：各機能の単体テストを実施する。
@@ -225,162 +212,180 @@ sequenceDiagram
 
 ## 2.プログラム
 
-`main.py`は、FastAPIを使用してWebAPIエンドポイントを定義するメインプログラムです。このプログラムは、在庫管理システムの在庫引当機能を提供するためのAPIエンドポイントを定義し、リクエストの処理とレスポンスの返却を行います。
+main.pyファイルは、APIの中心的な役割を果たしています。認証、エンドポイントの定義、データベース操作、エラー処理、ログ出力などの機能を提供し、アプリケーションの全体的な動作を制御しています
+1.インポートとアプリケーションの初期化：
+    - 必要なモジュールとクラスをインポートしています。
+    - FastAPIアプリケーションを作成し、app変数に割り当てています。
+    - 認証スキームとしてHTTPBearerを使用しています。
+2.ロガーの設定：
+    - loggingモジュールを使用してロガーを設定しています。
+    - ログレベルをINFOに設定し、ログメッセージのフォーマットを指定しています。
+3.認証ミドルウェア：
+    - authenticate_user関数は、JWTトークンを検証し、ユーザーを認証します。
+    - トークンが有効な場合、TokenPayloadインスタンスを返します。
+    - トークンが無効な場合、HTTPExceptionを発生させます。
+4.APIエンドポイント：
+    - /ordersエンドポイント：注文の作成と取得を処理します。
+    - /inventoriesエンドポイント：在庫の作成と取得を処理します。
+    - /allocateエンドポイント：在庫の割り当てを処理します。
+    - /allocation-resultsエンドポイント：割り当て結果の取得を処理します。
+5.エラー処理とログ出力：
+    - 各エンドポイントでは、処理をtryブロックで囲み、例外が発生した場合のエラー処理を行っています。
+    - エラーが発生した場合、適切なHTTPExceptionを発生させ、エラーメッセージをログに記録します。
+    - 処理が正常に完了した場合、関連する情報をログに出力します。
+6.データベース操作：
+    - get_db関数を使用して、データベースセッションを取得します。
+    - 各エンドポイントでは、データベースセッションを使用してデータベース操作を実行します。
+    - エラーが発生した場合、データベースのロールバックを行います。
+7.依存関係の注入：
+    - Dependsを使用して、エンドポイントの依存関係を注入しています。
+    - 認証ミドルウェアとデータベースセッションは、各エンドポイントで自動的に解決されます。
+    - このmain.pyファイルは、APIの中心的な役割を果たしています。認証、エンドポイントの定義、データベース操作、エラー処理、ログ出力などの機能を提供し、アプリケーションの全体的な動作を制御しています。
 
-主な処理の流れは以下の通りです：
-  1. FastAPIのインスタンスを作成します。
-  2. ロガーを設定し、ログ出力の設定を行います。
-  3. データベースセッションを取得するための依存関係を定義します。
-  4. 受注データの登録と取得のためのエンドポイントを定義します。
-     - `create_order`エンドポイントでは、受注データをデータベースに登録します。
-     - `get_orders`エンドポイントでは、登録された受注データを取得します。
-  5. 在庫データの登録と取得のためのエンドポイントを定義します。
-     - `create_inventory`エンドポイントでは、在庫データをデータベースに登録します。
-     - `get_inventories`エンドポイントでは、登録された在庫データを取得します。
-  6. 在庫引当処理の実行のためのエンドポイントを定義します。
-     - `allocate`エンドポイントでは、指定された引当方法を使用して在庫引当処理を実行します。
-     - 引当処理の実行には、`allocation.py`の`allocate_inventory`関数を呼び出します。
-  7. 引当結果の取得のためのエンドポイントを定義します。
-     - `get_allocation_results`エンドポイントでは、引当処理の結果を取得します。
-  8. エラーハンドリングのためのエクセプションハンドラを定義します。
-     - `http_exception_handler`は、HTTPExceptionが発生した場合のエラー応答を返します。
-  9. AWS Lambda用のエントリーポイントを定義します。
-     - `lambda_handler`関数は、AWS Lambdaからの呼び出しを受け取り、FastAPIアプリケーションを実行します。
+ブロック図
+このブロック図では、main.pyの主要なコンポーネントとその関連性を示しています。
 
-`main.py`では、各エンドポイントの処理内で発生した例外をキャッチし、適切なHTTPステータスコードとエラーメッセージを返すようにしています。また、例外の詳細をログに出力しています。
-このプログラムは、APIエンドポイントを介して、受注データと在庫データの登録・取得、在庫引当処理の実行、引当結果の取得などの機能を提供します。APIリクエストに応じて、適切な処理を行い、結果をレスポンスとして返却します。
-`main.py`は、在庫管理システムのWebAPIの中核となるプログラムであり、他のモジュール（`allocation.py`、`models.py`、`database.py`、`schemas.py`）と連携して、在庫引当機能を実現します。
-
+    - FastAPI: FastAPIアプリケーションを表します。
+    - Authentication: 認証ミドルウェアを表します。
+    - Endpoints: 各APIエンドポイントを表します。
+    - Database: データベース依存関係を表します。
+認証ミドルウェアは、すべてのAPIエンドポイントに適用されます。各APIエンドポイントは、データベース依存関係を使用してデータベースとやり取りします。
 ```mermaid
-graph TD
-    A[Receive Request] --> B{Validate Request}
-    B --> |Valid| C[Process Request]
-    B --> |Invalid| D[Return Error Response]
-    C --> E{Endpoint}
-    E --> |/orders| F[Create Order]
-    E --> |/inventories| G[Create Inventory]
-    E --> |/allocate| H[Allocate Inventory]
-    E --> |/orders GET| I[Get Orders]
-    E --> |/inventories GET| J[Get Inventories]
-    E --> |/allocation-results GET| K[Get Allocation Results]
-    F --> L[Return Response]
-    G --> L
-    H --> L
-    I --> L
-    J --> L
-    K --> L
+graph LR
+    subgraph FastAPI
+        app[FastAPI App]
+    end
+
+    subgraph Authentication
+        auth[Authentication Middleware]
+    end
+
+    subgraph Endpoints
+        orders[Orders Endpoint]
+        inventories[Inventories Endpoint]
+        allocate[Allocate Endpoint]
+        allocation_results[Allocation Results Endpoint]
+    end
+
+    subgraph Database
+        db[Database Dependency]
+    end
+
+    app --> auth
+    auth --> orders
+    auth --> inventories
+    auth --> allocate
+    auth --> allocation_results
+
+    orders --> db
+    inventories --> db
+    allocate --> db
+    allocation_results --> db
+
 ```
 
 
 `main.py`：
 ```python
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer
+from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from models import Order, Inventory, AllocationResult, Item
-from database import SessionLocal, engine
-from schemas import OrderRequest, InventoryRequest, AllocationRequest
+from schemas import TokenPayload, OrderRequest, InventoryRequest, AllocationRequest
+from models import Order, Inventory, AllocationResult
+from database import get_db
 from allocation import allocate_inventory
+from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
 import logging
 
 app = FastAPI()
 
+auth_scheme = HTTPBearer()
+
 # ロガーの設定
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 
-def get_db():
-    db = SessionLocal()
+async def authenticate_user(auth_token: str = Depends(auth_scheme)):
     try:
-        yield db
-    finally:
-        db.close()
+        payload = jwt.decode(auth_token.credentials, COGNITO_JWKS_URL, audience=COGNITO_AUDIENCE, issuer=COGNITO_ISSUER)
+        token_data = TokenPayload(**payload)
+        return token_data
+    except JWTError as e:
+        logger.error(f"Invalid authentication token: {e}")
+        raise HTTPException(status_code=401, detail="Invalid authentication token")
 
-@app.post("/orders")
+@app.post("/orders", dependencies=[Depends(authenticate_user)])
 def create_order(order: OrderRequest, db: Session = Depends(get_db)):
     try:
-        db_order = Order(order_id=order.order_id, item_code=order.item_code, quantity=order.quantity)
+        db_order = Order(item_code=order.item_code, quantity=order.quantity)
         db.add(db_order)
         db.commit()
         db.refresh(db_order)
         logger.info(f"Order created: {db_order}")
         return db_order
     except Exception as e:
-        logger.error(f"Error creating order: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Error creating order: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/orders")
+@app.get("/orders", dependencies=[Depends(authenticate_user)])
 def get_orders(db: Session = Depends(get_db)):
     try:
         orders = db.query(Order).all()
         logger.info(f"Retrieved {len(orders)} orders")
         return orders
     except Exception as e:
-        logger.error(f"Error retrieving orders: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Error retrieving orders: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/inventories")
+@app.post("/inventories", dependencies=[Depends(authenticate_user)])
 def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
     try:
-        db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity,
-                                 receipt_date=inventory.receipt_date, unit_price=inventory.unit_price)
+        db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
         db.add(db_inventory)
         db.commit()
         db.refresh(db_inventory)
         logger.info(f"Inventory created: {db_inventory}")
         return db_inventory
     except Exception as e:
-        logger.error(f"Error creating inventory: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Error creating inventory: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/inventories")
+@app.get("/inventories", dependencies=[Depends(authenticate_user)])
 def get_inventories(db: Session = Depends(get_db)):
     try:
         inventories = db.query(Inventory).all()
         logger.info(f"Retrieved {len(inventories)} inventories")
         return inventories
     except Exception as e:
-        logger.error(f"Error retrieving inventories: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Error retrieving inventories: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.post("/allocate")
+@app.post("/allocate", dependencies=[Depends(authenticate_user)])
 def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
     try:
-        result = allocate_inventory(db, allocation.allocation_method)
-        logger.info(f"Allocation completed. Results: {result}")
-        return result
-    except ValueError as e:
-        logger.error(f"Invalid allocation method: {str(e)}")
-        raise HTTPException(status_code=400, detail="Invalid allocation method")
+        allocation_result = allocate_inventory(allocation.order_id, allocation.item_code, allocation.quantity, db)
+        logger.info(f"Allocation completed: {allocation_result}")
+        return allocation_result
     except Exception as e:
-        logger.error(f"Error during allocation: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Error allocating inventory: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/allocation-results")
+@app.get("/allocation-results", dependencies=[Depends(authenticate_user)])
 def get_allocation_results(db: Session = Depends(get_db)):
     try:
         allocation_results = db.query(AllocationResult).all()
         logger.info(f"Retrieved {len(allocation_results)} allocation results")
         return allocation_results
     except Exception as e:
-        logger.error(f"Error retrieving allocation results: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    logger.error(f"HTTP Exception: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"message": exc.detail},
-    )
-
-def lambda_handler(event, context):
-    return app(event, context)
+        logger.error(f"Error retrieving allocation results: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 ```
 
 `allocation.py`は、在庫引当処理のロジックを実装する在庫引当プログラムです。このプログラムは、受注データと在庫データに基づいて、指定された引当方法を使用して在庫の引当を行います。
@@ -416,6 +421,45 @@ graph TD
     J --> K[Save Allocation Results]
     K --> L[Return Allocation Results]
 ```
+
+この`allocation.py`ファイルは、在庫の割り当てロジックを実装しています。
+
+主要な部分を説明します：
+
+1. インポートとロガーの設定：
+   - 必要なモジュールとクラスをインポートしています。
+   - `logging`モジュールを使用してロガーを設定し、ログレベルとフォーマットを指定しています。
+
+2. `allocate_inventory`関数：
+   - この関数は、指定された割り当て方法に基づいて在庫を注文に割り当てます。
+   - 引数として、データベースセッション（`db`）と割り当て方法（`allocation_method`）を受け取ります。
+
+3. 割り当て方法の実装：
+   - 関数内では、指定された割り当て方法に応じて、在庫を注文に割り当てるロジックが実装されています。
+   - 以下の割り当て方法が利用可能です：
+     - "FIFO"：先入先出法に基づいて在庫を割り当てます。
+     - "LIFO"：後入先出法に基づいて在庫を割り当てます。
+     - "AVERAGE"：平均価格に基づいて在庫を割り当てます。
+     - "SPECIFIC"：特定の在庫アイテムを割り当てます。
+     - "TOTAL_AVERAGE"：全ての在庫の平均価格に基づいて割り当てます。
+     - "MOVING_AVERAGE"：移動平均価格に基づいて割り当てます。
+
+4. 割り当て結果の保存：
+   - 割り当てが完了すると、`AllocationResult`オブジェクトが作成され、割り当て結果のリストに追加されます。
+   - 割り当て結果には、注文ID、商品コード、割り当て数量、割り当て価格、割り当て日付が含まれます。
+
+5. エラー処理とログ出力：
+   - 割り当て処理中に例外が発生した場合、エラーメッセージをログに記録し、例外を再度発生させます。
+   - 割り当てが正常に完了した場合、割り当て結果の詳細をログに出力します。
+
+6. データベースへの保存とコミット：
+   - 割り当て結果のリストを`bulk_save_objects`メソッドを使用してデータベースに一括保存します。
+   - `commit`メソッドを呼び出して、変更をデータベースにコミットします。
+
+7. 割り当て結果の返却：
+   - 割り当て結果のリストを呼び出し元に返却します。
+
+この`allocation.py`ファイルは、在庫割り当てのコアロジックを提供します。異なる割り当て方法を実装し、注文に対して在庫を割り当てます。割り当て結果はデータベースに保存され、ログに記録されます。このファイルは、`main.py`から呼び出され、在庫割り当てプロセスの中心的な役割を果たします。
 
 `allocation.py`：
 ```python
@@ -565,30 +609,44 @@ def allocate_inventory(db: Session, allocation_method: str):
     return allocation_results
 ```
 
-`models.py`では、以下の処理を行っています：
-このソースコードは、SQLAlchemyを使用してデータベースのテーブルに対応するデータモデルを定義しています。
+この`models.py`ファイルは、SQLAlchemyを使用してデータベースのテーブル構造を定義しています。
+1. インポート：
+   - `sqlalchemy`モジュールから必要なクラスをインポートしています。
+   - `database`モジュールから`Base`クラスをインポートしています。
 
-1. `Order`モデル:
-   - 受注データを表すモデルです。
-   - `order_id`（主キー）、`item_code`、`quantity`の属性を持ちます。
-   - `AllocationResult`モデルとの関連を定義しています。
+2. `Order`クラス：
+   - 注文情報を表すテーブルを定義しています。
+   - `__tablename__`属性で、テーブル名を指定しています。
+   - 以下のカラムを定義しています：
+     - `order_id`：注文IDを表す主キーカラム（文字列型）
+     - `item_code`：商品コードを表すカラム（文字列型）
+     - `quantity`：数量を表すカラム（整数型）
+   - `allocation_results`属性で、`AllocationResult`クラスとのリレーションシップを定義しています。
 
-2. `Inventory`モデル:
-   - 在庫データを表すモデルです。
-   - `id`（主キー）、`item_code`、`quantity`、`receipt_date`、`unit_price`の属性を持ちます。
+3. `Inventory`クラス：
+   - 在庫情報を表すテーブルを定義しています。
+   - `__tablename__`属性で、テーブル名を指定しています。
+   - 以下のカラムを定義しています：
+     - `id`：在庫IDを表す主キーカラム（整数型）
+     - `item_code`：商品コードを表すカラム（文字列型）
+     - `quantity`：数量を表すカラム（整数型）
+     - `receipt_date`：入荷日を表すカラム（日付型）
+     - `unit_price`：単価を表すカラム（浮動小数点型）
 
-3. `AllocationResult`モデル:
-   - 引当結果データを表すモデルです。
-   - `id`（主キー）、`order_id`（外部キー）、`item_code`、`allocated_quantity`、`allocated_price`、`allocation_date`の属性を持ちます。
-   - `Order`モデルとの関連を定義しています。
+4. `AllocationResult`クラス：
+   - 割り当て結果情報を表すテーブルを定義しています。
+   - `__tablename__`属性で、テーブル名を指定しています。
+   - 以下のカラムを定義しています：
+     - `id`：割り当て結果IDを表す主キーカラム（整数型）
+     - `order_id`：注文IDを表す外部キーカラム（文字列型）
+     - `item_code`：商品コードを表すカラム（文字列型）
+     - `allocated_quantity`：割り当て数量を表すカラム（整数型）
+     - `allocated_price`：割り当て価格を表すカラム（浮動小数点型）
+     - `allocation_date`：割り当て日付を表すカラム（日付型）
+   - `order`属性で、`Order`クラスとのリレーションシップを定義しています。
 
-これらのモデルは、`Base`クラスを継承しており、`Base`クラスは`database.py`で定義されています。
+この`models.py`ファイルは、アプリケーションで使用されるデータベースのテーブル構造を定義しています。`Order`クラスは注文情報を、`Inventory`クラスは在庫情報を、`AllocationResult`クラスは割り当て結果情報を表しています。これらのクラスは、SQLAlchemyのORM（Object-Relational Mapping）機能を利用して、Pythonのオブジェクトとデータベースのテーブル間のマッピングを行います。
 
-各モデルは、対応するデータベースのテーブルとマッピングされます。属性は、テーブルのカラムに対応します。主キーや外部キー、インデックスなどの制約も定義されています。
-
-`relationship`を使用して、モデル間の関連を定義しています。例えば、`Order`モデルと`AllocationResult`モデルの間には、一対多の関連があります。
-
-これらのモデルを使用して、データベースとのやり取りを行います。クエリを実行してデータを取得したり、新しいレコードを作成したり、既存のレコードを更新したりすることができます。
 ```mermaid
 graph TD
     A[Define Order Model] --> B[Define Inventory Model]
@@ -632,11 +690,43 @@ class AllocationResult(Base):
 ```
 
 
-`database.py`では、以下の処理を行っています：
-1. 環境変数からデータベースの接続情報を取得します。
-2. SQLAlchemyのエンジンを作成し、データベースセッションを設定します。
-3. `declarative_base`を使用して、データベースモデルの基底クラスを作成します。
+`database.py`ファイルは、データベース接続の設定と初期化を行っています。
 
+主要な部分を説明します：
+
+1. インポート：
+   - `sqlalchemy`モジュールから必要なクラスをインポートしています。
+   - `os`モジュールをインポートしています。
+
+2. 環境変数の取得：
+   - `os.environ.get()`を使用して、環境変数からデータベース接続情報を取得しています。
+   - 以下の環境変数が使用されています：
+     - `DB_HOST`：データベースのホスト名
+     - `DB_PORT`：データベースのポート番号
+     - `DB_NAME`：データベース名
+     - `DB_USER`：データベースのユーザー名
+     - `DB_PASSWORD`：データベースのパスワード
+
+3. データベース接続URLの作成：
+   - 取得した環境変数を使用して、SQLAlchemyのデータベース接続URLを作成しています。
+   - URLの形式は、`postgresql://ユーザー名:パスワード@ホスト名:ポート番号/データベース名`です。
+
+4. エンジンの作成：
+   - `create_engine()`関数を使用して、データベースエンジンを作成しています。
+   - エンジンは、データベースとの接続を管理するためのオブジェクトです。
+
+5. セッションの作成：
+   - `sessionmaker()`関数を使用して、セッションファクトリを作成しています。
+   - セッションファクトリは、データベースとのセッションを作成するためのオブジェクトです。
+   - `autocommit`と`autoflush`をFalseに設定し、エンジンをバインドしています。
+
+6. ベースクラスの作成：
+   - `declarative_base()`関数を使用して、SQLAlchemyのベースクラスを作成しています。
+   - ベースクラスは、モデルクラスの基底クラスとして使用されます。
+
+この`database.py`ファイルは、データベース接続の設定と初期化を行うための中心的な役割を果たしています。環境変数からデータベース接続情報を取得し、SQLAlchemyのエンジンとセッションを作成します。また、SQLAlchemyのベースクラスを提供し、モデルクラスの基底クラスとして使用されます。
+
+他のファイルでは、この`database.py`ファイルから必要なオブジェクトをインポートして使用します。例えば、`models.py`ファイルでは`Base`クラスを継承してモデルクラスを定義し、`main.py`ファイルでは`SessionLocal`を使用してデータベースセッションを取得します。
 ```mermaid
 graph TD
     A[Create Database Connection] --> B[Create Database Session]
@@ -669,39 +759,113 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 ```
 
-`schemas.py`では、以下の処理を行っています：
-1. Pydanticを使用して、APIリクエストとレスポンスのデータ構造を定義します。
-2. `OrderRequest`、`InventoryRequest`、`AllocationRequest`は、それぞれ受注データ、在庫データ、引当リクエストのスキーマを定義します。
-3. `OrderResponse`、`InventoryResponse`、`AllocationResultResponse`は、それぞれ受注データ、在庫データ、引当結果のレスポンススキーマを定義します。
-4. `Config`クラスの`orm_mode = True`設定により、SQLAlchemyのORMモデルからPydanticモデルへの変換が可能になります。
+`schemas.py`ファイルは、Pydanticを使用してデータの検証とシリアライゼーションを行うためのスキーマを定義しています。
+
+1. インポート：
+   - `pydantic`モジュールから`BaseModel`クラスをインポートしています。
+   - `datetime`モジュールをインポートしています。
+   - `typing`モジュールから`List`をインポートしています。
+
+2. `TokenPayload`クラス：
+   - JWTトークンのペイロードを表すスキーマを定義しています。
+   - トークンに含まれる情報をプロパティとして定義しています。
+
+3. `OrderRequest`クラス：
+   - 注文リクエストのスキーマを定義しています。
+   - 注文リクエストに必要な情報（商品コードと数量）をプロパティとして定義しています。
+
+4. `InventoryRequest`クラス：
+   - 在庫リクエストのスキーマを定義しています。
+   - 在庫リクエストに必要な情報（商品コードと数量）をプロパティとして定義しています。
+
+5. `AllocationRequest`クラス：
+   - 割り当てリクエストのスキーマを定義しています。
+   - 割り当てリクエストに必要な情報（注文ID、商品コード、数量）をプロパティとして定義しています。
+
+6. `OrderResponse`クラス：
+   - 注文レスポンスのスキーマを定義しています。
+   - 注文レスポンスに含まれる情報（ID、商品コード、数量）をプロパティとして定義しています。
+   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
+
+7. `InventoryResponse`クラス：
+   - 在庫レスポンスのスキーマを定義しています。
+   - 在庫レスポンスに含まれる情報（ID、商品コード、数量）をプロパティとして定義しています。
+   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
+
+8. `AllocationResultResponse`クラス：
+   - 割り当て結果レスポンスのスキーマを定義しています。
+   - 割り当て結果レスポンスに含まれる情報（ID、注文ID、商品コード、割り当て数量、割り当て日付）をプロパティとして定義しています。
+   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
+
+この`schemas.py`ファイルは、アプリケーション内で使用されるデータの構造を定義するためのスキーマを提供しています。これらのスキーマは、リクエストの検証、レスポンスのシリアライゼーション、およびORMオブジェクトとの相互変換に使用されます。
+
+例えば、`OrderRequest`スキーマは注文リクエストの検証に使用され、`OrderResponse`スキーマは注文レスポンスのシリアライゼーションに使用されます。また、`Config`クラスの`orm_mode`を`True`に設定することで、ORMオブジェクトからデータを読み取ることができます。
+
 ```mermaid
-graph TD
-    A[Define Order Schema] --> B[Define Inventory Schema]
-    B --> C[Define Allocation Request Schema]
-    C --> D[Define Allocation Result Schema]
+graph LR
+    subgraph Authentication
+        TokenPayload
+    end
+
+    subgraph Order
+        OrderRequest
+        OrderResponse
+    end
+
+    subgraph Inventory
+        InventoryRequest
+        InventoryResponse
+    end
+
+    subgraph Allocation
+        AllocationRequest
+        AllocationResultResponse
+    end
+
+    TokenPayload --> Order
+    TokenPayload --> Inventory
+    TokenPayload --> Allocation
+
+    OrderRequest --> OrderResponse
+    InventoryRequest --> InventoryResponse
+    AllocationRequest --> AllocationResultResponse
+
 ```
 
 `schemas.py`：
 ```python
 from pydantic import BaseModel
-from datetime import date
+from datetime import datetime
+from typing import List
+
+class TokenPayload(BaseModel):
+    sub: str
+    cognito:username: str
+    email: str
+    email_verified: bool
+    given_name: str
+    family_name: str
+    roles: List[str]
+    iss: str
+    aud: str
+    exp: int
+    iat: int
 
 class OrderRequest(BaseModel):
-    order_id: str
     item_code: str
     quantity: int
 
 class InventoryRequest(BaseModel):
     item_code: str
     quantity: int
-    receipt_date: date
-    unit_price: float
 
 class AllocationRequest(BaseModel):
-    allocation_method: str
+    order_id: int
+    item_code: str
+    quantity: int
 
 class OrderResponse(BaseModel):
-    order_id: str
+    id: int
     item_code: str
     quantity: int
 
@@ -709,22 +873,22 @@ class OrderResponse(BaseModel):
         orm_mode = True
 
 class InventoryResponse(BaseModel):
+    id: int
     item_code: str
     quantity: int
-    receipt_date: date
-    unit_price: float
 
     class Config:
         orm_mode = True
 
 class AllocationResultResponse(BaseModel):
-    allocation_id: int
-    order_id: str
+    id: int
+    order_id: int
     item_code: str
     allocated_quantity: int
-    allocated_price: float
-    allocation_date: date
+    allocation_date: datetime
 
     class Config:
         orm_mode = True
+
 ```
+

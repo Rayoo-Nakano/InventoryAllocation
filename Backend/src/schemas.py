@@ -1,22 +1,35 @@
 from pydantic import BaseModel
-from datetime import date
+from datetime import datetime
+from typing import List
+
+class TokenPayload(BaseModel):
+    sub: str
+    cognito:username: str
+    email: str
+    email_verified: bool
+    given_name: str
+    family_name: str
+    roles: List[str]
+    iss: str
+    aud: str
+    exp: int
+    iat: int
 
 class OrderRequest(BaseModel):
-    order_id: str
     item_code: str
     quantity: int
 
 class InventoryRequest(BaseModel):
     item_code: str
     quantity: int
-    receipt_date: date
-    unit_price: float
 
 class AllocationRequest(BaseModel):
-    allocation_method: str
+    order_id: int
+    item_code: str
+    quantity: int
 
 class OrderResponse(BaseModel):
-    order_id: str
+    id: int
     item_code: str
     quantity: int
 
@@ -24,21 +37,19 @@ class OrderResponse(BaseModel):
         orm_mode = True
 
 class InventoryResponse(BaseModel):
+    id: int
     item_code: str
     quantity: int
-    receipt_date: date
-    unit_price: float
 
     class Config:
         orm_mode = True
 
 class AllocationResultResponse(BaseModel):
-    allocation_id: int
-    order_id: str
+    id: int
+    order_id: int
     item_code: str
     allocated_quantity: int
-    allocated_price: float
-    allocation_date: date
+    allocation_date: datetime
 
     class Config:
         orm_mode = True

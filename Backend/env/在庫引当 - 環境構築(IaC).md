@@ -2,7 +2,7 @@ IaC (Infrastructure as Code) を使用して AWS 環境を構築し、CI/CD パ�
 
 ## 1. AWS 環境の IaC (Infrastructure as Code)
 
-AWS CloudFormationを使用して、AWS 環境のインフラストラクチャをコードとして定義および管理します。
+AWS CloudFormationを使用して、AWS 環境のインフラストラクチャをコードとして定義および管理します。尚Lambdaの実装は別のCloudFormationを提供するので、必要に応じて結合してください。
 
 以下は、AWS 環境の構築を図式化したものです。
 
@@ -36,7 +36,7 @@ graph LR
 
 6. RDS (PostgreSQL) インスタンスが作成され、セキュリティグループによって保護されます。
 
-7. Lambda 関数が作成され、セキュリティグループによって保護されます。
+7. Lambda 関数が作成され、セキュリティグループによって保護されます。←　詳細化は下記に記述
 
 8. API Gateway が作成され、Lambda 関数と統合されます。
 
@@ -262,6 +262,284 @@ Parameters:
 ```
 
 上記の AWS CloudFormation テンプレートは、在庫引当システムのインフラストラクチャを定義しています。主要なリソースとして、VPC、サブネット、セキュリティグループ、RDS（PostgreSQL）、Lambda 関数、API Gateway が含まれています。
+
+
+以下は、提供された5つのプログラムをAWS Lambdaで実装するためのAWS CloudFormationテンプレートです。
+このCloudFormationテンプレートでは、以下のリソースが定義されています。
+
+1. `LambdaExecutionRole`: Lambda関数の実行に必要なIAMロールを定義します。
+
+2. `MainLambdaFunction`: メインのLambda関数を定義します。この関数は、FastAPIを使用してAPIエンドポイントを提供し、注文の作成、在庫の作成、在庫の割り当てを処理します。
+
+3. `AllocationLambdaFunction`: 在庫の割り当てを行うLambda関数を定義します。この関数は、`allocation.py`ファイルの`allocate_inventory`関数を呼び出します。
+
+4. `ModelsLambdaLayer`: モデルを定義するLambdaレイヤーを作成します。このレイヤーには、`models.py`ファイルの内容が含まれます。
+
+5. `DatabaseLambdaLayer`: データベース接続を設定するLambdaレイヤーを作成します。このレイヤーには、`database.py`ファイルの内容が含まれます。
+
+6. `SchemasLambdaLayer`: スキーマを定義するLambdaレイヤーを作成します。このレイヤーには、`schemas.py`ファイルの内容が含まれます。
+
+このテンプレートでは、データベースの接続情報はパラメータとして定義され、Lambda関数の環境変数として設定されます。
+
+Lambda関数のコードは、インラインで定義されています。実際のデプロイメントでは、コードをZIPファイルとしてアップロードすることをお勧めします。
+
+このテンプレートを使用することで、提供された5つのプログラムをAWS Lambda上で実装し、APIエンドポイントを提供することができます。CloudFormationスタックを作成する際に、必要なパラメータを指定してください。
+
+以下は、提供されたAWS CloudFormationテンプレートの構成図です。
+
+1. AWS CloudFormationは、テンプレートに定義されたリソースを作成・管理します。
+
+2. LambdaExecutionRoleは、Lambda関数の実行に必要なIAMロールです。MainLambdaFunctionとAllocationLambdaFunctionは、このロールを使用します。
+
+3. MainLambdaFunctionは、メインのLambda関数であり、APIエンドポイントを提供します。この関数は、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
+
+4. AllocationLambdaFunctionは、在庫の割り当てを行うLambda関数です。この関数も、ModelsLambdaLayer、DatabaseLambdaLayer、およびSchemasLambdaLayerを使用します。
+
+5. ModelsLambdaLayerは、モデルを定義するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。
+
+6. DatabaseLambdaLayerは、データベース接続を設定するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。このレイヤーは、DBHost、DBPort、DBName、DBUser、およびDBPasswordパラメータを使用してデータベース接続を設定します。
+
+7. SchemasLambdaLayerは、スキーマを定義するLambdaレイヤーです。MainLambdaFunctionとAllocationLambdaFunctionで使用されます。
+
+8. DBHost、DBPort、DBName、DBUser、およびDBPasswordは、データベース接続情報を指定するCloudFormationテンプレートのパラメータです。これらの値は、DatabaseLambdaLayerに渡されます。
+
+この構成図は、AWS CloudFormationテンプレートで定義されたリソースとその関係を視覚的に表現しています。Lambda関数は、必要なLambdaレイヤーを使用し、LambdaレイヤーはCloudFormationパラメータから設定情報を受け取ります。
+
+```mermaid
+graph LR
+    A[AWS CloudFormation] --> B[LambdaExecutionRole]
+    A --> C[MainLambdaFunction]
+    A --> D[AllocationLambdaFunction]
+    A --> E[ModelsLambdaLayer]
+    A --> F[DatabaseLambdaLayer]
+    A --> G[SchemasLambdaLayer]
+
+    B --> C
+    B --> D
+
+    E --> C
+    E --> D
+
+    F --> C
+    F --> D
+
+    G --> C
+    G --> D
+
+    H[DBHost] --> F
+    I[DBPort] --> F
+    J[DBName] --> F
+    K[DBUser] --> F
+    L[DBPassword] --> F
+```
+
+AWS CloudFormation - Lambda
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for inventory allocation system'
+
+Parameters:
+  DBHost:
+    Type: String
+    Description: 'Database host'
+  DBPort:
+    Type: String
+    Description: 'Database port'
+  DBName:
+    Type: String
+    Description: 'Database name'
+  DBUser:
+    Type: String
+    Description: 'Database user'
+  DBPassword:
+    Type: String
+    Description: 'Database password'
+
+Resources:
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: 'LambdaExecutionPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+
+  MainLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'MainFunction'
+      Runtime: 'python3.8'
+      Handler: 'main.handler'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import os
+          from fastapi import FastAPI, Depends
+          from sqlalchemy.orm import Session
+          from database import SessionLocal, engine
+          from models import Base
+          from schemas import OrderRequest, InventoryRequest, AllocationRequest
+          from allocation import allocate_inventory
+
+          Base.metadata.create_all(bind=engine)
+
+          app = FastAPI()
+
+          def get_db():
+              db = SessionLocal()
+              try:
+                  yield db
+              finally:
+                  db.close()
+
+          @app.post("/orders")
+          def create_order(order: OrderRequest, db: Session = Depends(get_db)):
+              # Create order logic
+
+          @app.post("/inventories")
+          def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
+              # Create inventory logic
+
+          @app.post("/allocations")
+          def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
+              # Allocate inventory logic
+
+          def handler(event, context):
+              # Lambda handler logic
+      Environment:
+        Variables:
+          DB_HOST: !Ref DBHost
+          DB_PORT: !Ref DBPort
+          DB_NAME: !Ref DBName
+          DB_USER: !Ref DBUser
+          DB_PASSWORD: !Ref DBPassword
+
+  AllocationLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'AllocationFunction'
+      Runtime: 'python3.8'
+      Handler: 'allocation.allocate_inventory'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          from sqlalchemy.orm import Session
+          from models import Order, Inventory, AllocationResult
+          from datetime import datetime
+          import logging
+
+          logger = logging.getLogger(__name__)
+          logger.setLevel(logging.INFO)
+
+          handler = logging.StreamHandler()
+          handler.setLevel(logging.INFO)
+          formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+          handler.setFormatter(formatter)
+          logger.addHandler(handler)
+
+          def allocate_inventory(db: Session, allocation_method: str):
+              # Allocation logic
+
+  ModelsLambdaLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      LayerName: 'ModelsLayer'
+      Description: 'Models layer'
+      Content:
+        ZipFile: |
+          from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
+          from sqlalchemy.orm import relationship
+          from database import Base
+
+          class Order(Base):
+              # Order model
+
+          class Inventory(Base):
+              # Inventory model
+
+          class AllocationResult(Base):
+              # AllocationResult model
+
+  DatabaseLambdaLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      LayerName: 'DatabaseLayer'
+      Description: 'Database layer'
+      Content:
+        ZipFile: |
+          from sqlalchemy import create_engine
+          from sqlalchemy.ext.declarative import declarative_base
+          from sqlalchemy.orm import sessionmaker
+          import os
+
+          DB_HOST = os.environ.get("DB_HOST")
+          DB_PORT = os.environ.get("DB_PORT")
+          DB_NAME = os.environ.get("DB_NAME")
+          DB_USER = os.environ.get("DB_USER")
+          DB_PASSWORD = os.environ.get("DB_PASSWORD")
+
+          SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+          engine = create_engine(SQLALCHEMY_DATABASE_URL)
+          SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+          Base = declarative_base()
+
+  SchemasLambdaLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      LayerName: 'SchemasLayer'
+      Description: 'Schemas layer'
+      Content:
+        ZipFile: |
+          from pydantic import BaseModel
+          from datetime import datetime
+          from typing import List
+
+          class TokenPayload(BaseModel):
+              # TokenPayload schema
+
+          class OrderRequest(BaseModel):
+              # OrderRequest schema
+
+          class InventoryRequest(BaseModel):
+              # InventoryRequest schema
+
+          class AllocationRequest(BaseModel):
+              # AllocationRequest schema
+
+          class OrderResponse(BaseModel):
+              # OrderResponse schema
+
+          class InventoryResponse(BaseModel):
+              # InventoryResponse schema
+
+          class AllocationResultResponse(BaseModel):
+              # AllocationResultResponse schema
+```
+
+
+
+
+
+
 
 ## 2. CI/CD パイプラインの IaC
 
