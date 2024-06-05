@@ -32,6 +32,9 @@ Parameters:
   ParameterFilePath:
     Type: String
     Default: 's3://my-parameter-bucket/LambdaParameters.json'
+  VpcEndpointIds:
+    Type: CommaDelimitedList
+    Default: ''
 
 Resources:
   FastAPIFunction:
@@ -84,7 +87,7 @@ Resources:
       EndpointConfiguration:
         Types:
           - REGIONAL
-        VpcEndpointIds: []
+        VpcEndpointIds: !Ref VpcEndpointIds
 
   APIGatewayAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
@@ -159,6 +162,7 @@ Outputs:
   "DatabaseSecretArn": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:MyDatabaseSecret-abcdef",
   "LambdaCodeBucket": "my-lambda-code-bucket",
   "LambdaCodeKey": "fastapi-app/lambda_function.zip",
-  "APIGatewayStageName": "prod"
+  "VpcEndpointIds": ["vpce-1234abcd", "vpce-5678efgh"],
+  "APIGatewayStageName": "dev"
 }
 ```

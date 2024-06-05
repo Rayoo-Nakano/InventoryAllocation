@@ -5,6 +5,10 @@ Parameters:
   ParameterFilePath:
     Type: String
     Default: 's3://my-parameter-bucket/LambdaParameters.json'
+  VpcEndpointIds:
+    Type: CommaDelimitedList
+    Default: ''
+
 
 Resources:
   FastAPIFunction:
@@ -57,7 +61,7 @@ Resources:
       EndpointConfiguration:
         Types:
           - REGIONAL
-        VpcEndpointIds: []
+        VpcEndpointIds: !Ref VpcEndpointIds
 
   APIGatewayAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
