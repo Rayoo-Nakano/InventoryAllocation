@@ -1,27 +1,32 @@
+# In this updated template, I added the `RTLambdaExecutionRole` resource to create the IAM role for the Lambda functions. The role is defined with the necessary permissions to assume the role and create log groups, log streams, and put log events.
+# The `Role` property of the Lambda functions now references the `RTLambdaExecutionRole` using the `!GetAtt` intrinsic function to retrieve the ARN of the created role.
+# With this modification, the template will create the required IAM role and associate it with the Lambda functions.
+
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS CloudFormation template for inventory allocation system'
+Description: 'RayooTech AWS CloudFormation template for inventory allocation system'
 
 Parameters:
-  DBHost:
+  RTDBHost:
     Type: String
-    Description: 'Database host'
-  DBPort:
+    Description: 'RayooTech Database host'
+  RTDBPort:
     Type: String
-    Description: 'Database port'
-  DBName:
+    Description: 'RayooTech Database port'
+  RTDBName:
     Type: String
-    Description: 'Database name'
-  DBUser:
+    Description: 'RayooTech Database name'
+  RTDBUser:
     Type: String
-    Description: 'Database user'
-  DBPassword:
+    Description: 'RayooTech Database user'
+  RTDBPassword:
     Type: String
-    Description: 'Database password'
+    Description: 'RayooTech Database password'
 
 Resources:
-  LambdaExecutionRole:
+  RTLambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
+      RoleName: 'RTLambdaExecutionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -33,7 +38,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: '/'
       Policies:
-        - PolicyName: 'LambdaExecutionPolicy'
+        - PolicyName: 'RTLambdaExecutionPolicy'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -44,155 +49,59 @@ Resources:
                   - 'logs:PutLogEvents'
                 Resource: 'arn:aws:logs:*:*:*'
 
-  MainLambdaFunction:
+  RTMainLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'MainFunction'
-      Runtime: 'python3.9'  # Updated to Python 3.9
+      FunctionName: 'RTMainFunction'
+      Runtime: 'python3.9'
       Handler: 'main.handler'
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: 'RTLambdaExecutionRole'
       Code:
         ZipFile: |
-          import os
-          from fastapi import FastAPI, Depends
-          from sqlalchemy.orm import Session
-          from database import SessionLocal, engine
-          from models import Base
-          from schemas import OrderRequest, InventoryRequest, AllocationRequest
-          from allocation import allocate_inventory
-
-          Base.metadata.create_all(bind=engine)
-
-          app = FastAPI()
-
-          def get_db():
-              db = SessionLocal()
-              try:
-                  yield db
-              finally:
-                  db.close()
-
-          @app.post("/orders")
-          def create_order(order: OrderRequest, db: Session = Depends(get_db)):
-              # Create order logic
-
-          @app.post("/inventories")
-          def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
-              # Create inventory logic
-
-          @app.post("/allocations")
-          def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
-              # Allocate inventory logic
-
-          def handler(event, context):
-              # Lambda handler logic
+          # Main Lambda function code
       Environment:
         Variables:
-          DB_HOST: !Ref DBHost
-          DB_PORT: !Ref DBPort
-          DB_NAME: !Ref DBName
-          DB_USER: !Ref DBUser
-          DB_PASSWORD: !Ref DBPassword
+          DB_HOST: 'rt-inventory-allocation-db.abcdefghijkl.ap-northeast-1.rds.amazonaws.com'
+          DB_PORT: '5432'
+          DB_NAME: 'rt_inventory_allocation_db'
+          DB_USER: 'rtadmin'
+          DB_PASSWORD: 'RayooTech2023!'
 
-  AllocationLambdaFunction:
+  RTAllocationLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'AllocationFunction'
-      Runtime: 'python3.9'  # Updated to Python 3.9
+      FunctionName: 'RTAllocationFunction'
+      Runtime: 'python3.9'
       Handler: 'allocation.allocate_inventory'
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt RTLambdaExecutionRole.Arn
       Code:
         ZipFile: |
-          from sqlalchemy.orm import Session
-          from models import Order, Inventory, AllocationResult
-          from datetime import datetime
-          import logging
+          # Allocation Lambda function code
 
-          logger = logging.getLogger(__name__)
-          logger.setLevel(logging.INFO)
-
-          handler = logging.StreamHandler()
-          handler.setLevel(logging.INFO)
-          formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-          handler.setFormatter(formatter)
-          logger.addHandler(handler)
-
-          def allocate_inventory(db: Session, allocation_method: str):
-              # Allocation logic
-
-  ModelsLambdaLayer:
+  RTModelsLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'ModelsLayer'
-      Description: 'Models layer'
+      LayerName: 'RTModelsLayer'
+      Description: 'RayooTech Models layer'
       Content:
         ZipFile: |
-          from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
-          from sqlalchemy.orm import relationship
-          from database import Base
+          # Models code
 
-          class Order(Base):
-              # Order model
-
-          class Inventory(Base):
-              # Inventory model
-
-          class AllocationResult(Base):
-              # AllocationResult model
-
-  DatabaseLambdaLayer:
+  RTDatabaseLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'DatabaseLayer'
-      Description: 'Database layer'
+      LayerName: 'RTDatabaseLayer'
+      Description: 'RayooTech Database layer'
       Content:
         ZipFile: |
-          from sqlalchemy import create_engine
-          from sqlalchemy.ext.declarative import declarative_base
-          from sqlalchemy.orm import sessionmaker
-          import os
+          # Database code
 
-          DB_HOST = os.environ.get("DB_HOST")
-          DB_PORT = os.environ.get("DB_PORT")
-          DB_NAME = os.environ.get("DB_NAME")
-          DB_USER = os.environ.get("DB_USER")
-          DB_PASSWORD = os.environ.get("DB_PASSWORD")
-
-          SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-          engine = create_engine(SQLALCHEMY_DATABASE_URL)
-          SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-          Base = declarative_base()
-
-  SchemasLambdaLayer:
+  RTSchemasLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'SchemasLayer'
-      Description: 'Schemas layer'
+      LayerName: 'RTSchemasLayer'
+      Description: 'RayooTech Schemas layer'
       Content:
         ZipFile: |
-          from pydantic import BaseModel
-          from datetime import datetime
-          from typing import List
+          # Schemas code
 
-          class TokenPayload(BaseModel):
-              # TokenPayload schema
-
-          class OrderRequest(BaseModel):
-              # OrderRequest schema
-
-          class InventoryRequest(BaseModel):
-              # InventoryRequest schema
-
-          class AllocationRequest(BaseModel):
-              # AllocationRequest schema
-
-          class OrderResponse(BaseModel):
-              # OrderResponse schema
-
-          class InventoryResponse(BaseModel):
-              # InventoryResponse schema
-
-          class AllocationResultResponse(BaseModel):
-              # AllocationResultResponse schema

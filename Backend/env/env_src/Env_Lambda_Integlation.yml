@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Inventory Allocation System Infrastructure'
+Description: 'RayooTech Inventory Allocation System Infrastructure'
 
 Resources:
   # VPC
-  VPC:
+  RTVPC:
     Type: 'AWS::EC2::VPC'
     Properties:
       CidrBlock: '10.0.0.0/16'
@@ -12,34 +12,34 @@ Resources:
       InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: 'Inventory-Allocation-VPC'
+          Value: 'RT-Inventory-Allocation-VPC'
 
   # インターネットゲートウェイ
-  InternetGateway:
+  RTInternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
       Tags:
         - Key: Name
-          Value: 'Inventory-Allocation-IGW'
+          Value: 'RT-Inventory-Allocation-IGW'
 
   # サブネット
-  PublicSubnet1:
+  RTPublicSubnet1:
     Type: 'AWS::EC2::Subnet'
     Properties:
-      VpcId: !Ref VPC
-      AvailabilityZone: !Select [0, !GetAZs '']
+      VpcId: 'RT-Inventory-Allocation-VPC'
+      AvailabilityZone: 'ap-northeast-1a'
       CidrBlock: '10.0.1.0/24'
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: 'Inventory-Allocation-Public-Subnet-1'
+          Value: 'RT-Inventory-Allocation-Public-Subnet-1'
 
   # セキュリティグループ
-  WebSecurityGroup:
+  RTWebSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: 'Security group for web servers'
-      VpcId: !Ref VPC
+      GroupDescription: 'Security group for RayooTech web servers'
+      VpcId: 'RT-Inventory-Allocation-VPC'
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -51,7 +51,7 @@ Resources:
           CidrIp: '0.0.0.0/0'
 
   # RDS (PostgreSQL)
-  RDSInstance:
+  RTRDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
       Engine: postgres
@@ -61,14 +61,14 @@ Resources:
       StorageType: gp2
       MultiAZ: false
       PubliclyAccessible: false
-      DBName: 'inventory_allocation_db'
-      MasterUsername: 'admin'
-      MasterUserPassword: !Ref DBPassword
+      DBName: 'rt_inventory_allocation_db'
+      MasterUsername: 'rtadmin'
+      MasterUserPassword: 'RayooTech2023!'
       VPCSecurityGroups:
-        - !Ref DBSecurityGroup
+        - 'RT-DB-SecurityGroup'
 
   # Lambda 関数
-  LambdaExecutionRole:
+  RTLambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -82,7 +82,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: '/'
       Policies:
-        - PolicyName: 'LambdaExecutionPolicy'
+        - PolicyName: 'RTLambdaExecutionPolicy'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -93,13 +93,13 @@ Resources:
                   - 'logs:PutLogEvents'
                 Resource: 'arn:aws:logs:*:*:*'
 
-  MainLambdaFunction:
+  RTMainLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'MainFunction'
+      FunctionName: 'RTMainFunction'
       Runtime: 'python3.9'
       Handler: 'main.handler'
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: 'RTLambdaExecutionRole'
       Code:
         ZipFile: |
           import os
@@ -137,19 +137,19 @@ Resources:
               # Lambda handler logic
       Environment:
         Variables:
-          DB_HOST: !GetAtt RDSInstance.Endpoint.Address
-          DB_PORT: !GetAtt RDSInstance.Endpoint.Port
-          DB_NAME: 'inventory_allocation_db'
-          DB_USER: 'admin'
-          DB_PASSWORD: !Ref DBPassword
+          DB_HOST: 'rt-inventory-allocation-db.abcdefghijkl.ap-northeast-1.rds.amazonaws.com'
+          DB_PORT: '5432'
+          DB_NAME: 'rt_inventory_allocation_db'
+          DB_USER: 'rtadmin'
+          DB_PASSWORD: 'RayooTech2023!'
 
-  AllocationLambdaFunction:
+  RTAllocationLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'AllocationFunction'
+      FunctionName: 'RTAllocationFunction'
       Runtime: 'python3.9'
       Handler: 'allocation.allocate_inventory'
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: 'RTLambdaExecutionRole'
       Code:
         ZipFile: |
           from sqlalchemy.orm import Session
@@ -169,11 +169,11 @@ Resources:
           def allocate_inventory(db: Session, allocation_method: str):
               # Allocation logic
 
-  ModelsLambdaLayer:
+  RTModelsLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'ModelsLayer'
-      Description: 'Models layer'
+      LayerName: 'RTModelsLayer'
+      Description: 'RayooTech Models layer'
       Content:
         ZipFile: |
           from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
@@ -189,11 +189,11 @@ Resources:
           class AllocationResult(Base):
               # AllocationResult model
 
-  DatabaseLambdaLayer:
+  RTDatabaseLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'DatabaseLayer'
-      Description: 'Database layer'
+      LayerName: 'RTDatabaseLayer'
+      Description: 'RayooTech Database layer'
       Content:
         ZipFile: |
           from sqlalchemy import create_engine
@@ -214,11 +214,11 @@ Resources:
 
           Base = declarative_base()
 
-  SchemasLambdaLayer:
+  RTSchemasLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'SchemasLayer'
-      Description: 'Schemas layer'
+      LayerName: 'RTSchemasLayer'
+      Description: 'RayooTech Schemas layer'
       Content:
         ZipFile: |
           from pydantic import BaseModel
@@ -247,82 +247,76 @@ Resources:
               # AllocationResultResponse schema
 
   # API Gateway
-  APIGateway:
+  RTAPIGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
-      Name: 'Inventory Allocation API'
-      Description: 'API for Inventory Allocation System'
+      Name: 'RayooTech Inventory Allocation API'
+      Description: 'API for RayooTech Inventory Allocation System'
 
   # API Gateway リソース
-  OrdersResource:
+  RTOrdersResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
+      RestApiId: 'RTAPIGateway'
+      ParentId: 'RTAPIGateway-RootResourceId'
       PathPart: 'orders'
 
-  InventoriesResource:
+  RTInventoriesResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
+      RestApiId: 'RTAPIGateway'
+      ParentId: 'RTAPIGateway-RootResourceId'
       PathPart: 'inventories'
 
-  AllocateResource:
+  RTAllocateResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
+      RestApiId: 'RTAPIGateway'
+      ParentId: 'RTAPIGateway-RootResourceId'
       PathPart: 'allocate'
 
-  AllocationResultsResource:
+  RTAllocationResultsResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
+      RestApiId: 'RTAPIGateway'
+      ParentId: 'RTAPIGateway-RootResourceId'
       PathPart: 'allocation-results'
 
   # API Gateway メソッド
   # Orders リソースのメソッド
-  OrdersPostMethod:
+  RTOrdersPostMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref OrdersResource
+      RestApiId: 'RTAPIGateway'
+      ResourceId: 'RTOrdersResource'
       HttpMethod: POST
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+        Uri: 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/RTMainLambdaFunction/invocations'
 
-  OrdersGetMethod:
+  RTOrdersGetMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref OrdersResource
+      RestApiId: 'RTAPIGateway'
+      ResourceId: 'RTOrdersResource'
       HttpMethod: GET
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+        Uri: 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/RTMainLambdaFunction/invocations'
 
   # Inventories リソースのメソッド
-  InventoriesPostMethod:
+  RTInventoriesPostMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !Ref InventoriesResource
+      RestApiId: 'RTAPIGateway'
+      ResourceId: 'RTInventoriesResource'
       HttpMethod: POST
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
-
-  InventoriesGetMethod:
-    Type: 'AWS::ApiGateway::Method'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ResourceId: !
+        Uri: 'arn:aws:api
