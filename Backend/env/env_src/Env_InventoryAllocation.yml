@@ -1,4 +1,11 @@
-# AWS CloudFormation テンプレート例
+# AWS CloudFormationでは、パラメータを使用してテンプレートに値を渡すことができます。このテンプレートでは、ParametersセクションでDBPasswordパラメータを定義しています。
+# Parameters:
+#  DBPassword:
+#    Type: String
+#    NoEcho: true
+#    Description: 'Password for the RDS database'
+# スタックを作成する際、AWS Management Console、AWS CLI、またはAWS SDKを使用してこのパラメータの値を指定します。例えば、AWS CLIを使用する場合、以下のようにパラメータを指定します。 
+# aws cloudformation create-stack --stack-name my-stack --template-body file://template.yaml --parameters ParameterKey=DBPassword,ParameterValue=your_password
 
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Inventory Allocation System Infrastructure'
@@ -23,6 +30,13 @@ Resources:
       Tags:
         - Key: Name
           Value: 'Inventory-Allocation-IGW'
+
+  # IGWのVPCへのアタッチ
+  InternetGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
 
   # サブネット
   PublicSubnet1:
@@ -51,6 +65,12 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: '0.0.0.0/0'
+
+  DBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for RDS database'
+      VpcId: !Ref VPC
 
   # RDS (PostgreSQL)
   RDSInstance:
@@ -87,6 +107,37 @@ Resources:
           DB_NAME: 'inventory_allocation_db'
           DB_USER: 'admin'
           DB_PASSWORD: !Ref DBPassword
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: 'LambdaExecutionPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                Resource: '*'
 
   # API Gateway
   APIGateway:

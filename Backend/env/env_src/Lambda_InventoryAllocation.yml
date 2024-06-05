@@ -1,32 +1,36 @@
-# In this updated template, I added the `RTLambdaExecutionRole` resource to create the IAM role for the Lambda functions. The role is defined with the necessary permissions to assume the role and create log groups, log streams, and put log events.
-# The `Role` property of the Lambda functions now references the `RTLambdaExecutionRole` using the `!GetAtt` intrinsic function to retrieve the ARN of the created role.
-# With this modification, the template will create the required IAM role and associate it with the Lambda functions.
+# パラメータ記述サンプル:
+#   DBHost: 'your-db-host.example.com'
+#   DBPort: '5432'
+#   DBName: 'your-db-name'
+#   DBUser: 'your-db-user'
+#   DBPassword: 'your-db-password'
 
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'RayooTech AWS CloudFormation template for inventory allocation system'
+Description: '在庫割当システムのAWS CloudFormationテンプレート'
 
 Parameters:
-  RTDBHost:
+  DBHost:
     Type: String
-    Description: 'RayooTech Database host'
-  RTDBPort:
+    Description: 'データベースのホスト名'
+  DBPort:
     Type: String
-    Description: 'RayooTech Database port'
-  RTDBName:
+    Description: 'データベースのポート番号'
+  DBName:
     Type: String
-    Description: 'RayooTech Database name'
-  RTDBUser:
+    Description: 'データベース名'
+  DBUser:
     Type: String
-    Description: 'RayooTech Database user'
-  RTDBPassword:
+    Description: 'データベースのユーザー名'
+  DBPassword:
     Type: String
-    Description: 'RayooTech Database password'
+    NoEcho: true
+    Description: 'データベースのパスワード'
 
 Resources:
-  RTLambdaExecutionRole:
+  LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: 'RTLambdaExecutionRole'
+      RoleName: 'LambdaExecutionRole'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -38,7 +42,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: '/'
       Policies:
-        - PolicyName: 'RTLambdaExecutionPolicy'
+        - PolicyName: 'LambdaExecutionPolicy'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -49,59 +53,58 @@ Resources:
                   - 'logs:PutLogEvents'
                 Resource: 'arn:aws:logs:*:*:*'
 
-  RTMainLambdaFunction:
+  MainLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'RTMainFunction'
+      FunctionName: 'MainFunction'
       Runtime: 'python3.9'
       Handler: 'main.handler'
-      Role: 'RTLambdaExecutionRole'
+      Role: !GetAtt LambdaExecutionRole.Arn  # LambdaExecutionRoleリソースのARN属性を取得
       Code:
         ZipFile: |
-          # Main Lambda function code
+          # メインのLambda関数のコード
       Environment:
         Variables:
-          DB_HOST: 'rt-inventory-allocation-db.abcdefghijkl.ap-northeast-1.rds.amazonaws.com'
-          DB_PORT: '5432'
-          DB_NAME: 'rt_inventory_allocation_db'
-          DB_USER: 'rtadmin'
-          DB_PASSWORD: 'RayooTech2023!'
+          DB_HOST: !Ref DBHost  # DBHostパラメータの値を参照
+          DB_PORT: !Ref DBPort  # DBPortパラメータの値を参照
+          DB_NAME: !Ref DBName  # DBNameパラメータの値を参照
+          DB_USER: !Ref DBUser  # DBUserパラメータの値を参照
+          DB_PASSWORD: !Ref DBPassword  # DBPasswordパラメータの値を参照
 
-  RTAllocationLambdaFunction:
+  AllocationLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'RTAllocationFunction'
+      FunctionName: 'AllocationFunction'
       Runtime: 'python3.9'
       Handler: 'allocation.allocate_inventory'
-      Role: !GetAtt RTLambdaExecutionRole.Arn
+      Role: !GetAtt LambdaExecutionRole.Arn  # LambdaExecutionRoleリソースのARN属性を取得
       Code:
         ZipFile: |
-          # Allocation Lambda function code
+          # 在庫割当のLambda関数のコード
 
-  RTModelsLambdaLayer:
+  ModelsLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTModelsLayer'
-      Description: 'RayooTech Models layer'
+      LayerName: 'ModelsLayer'
+      Description: 'モデル用のレイヤー'
       Content:
         ZipFile: |
-          # Models code
+          # モデルのコード
 
-  RTDatabaseLambdaLayer:
+  DatabaseLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTDatabaseLayer'
-      Description: 'RayooTech Database layer'
+      LayerName: 'DatabaseLayer'
+      Description: 'データベース用のレイヤー'
       Content:
         ZipFile: |
-          # Database code
+          # データベースのコード
 
-  RTSchemasLambdaLayer:
+  SchemasLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTSchemasLayer'
-      Description: 'RayooTech Schemas layer'
+      LayerName: 'SchemasLayer'
+      Description: 'スキーマ用のレイヤー'
       Content:
         ZipFile: |
-          # Schemas code
-
+          # スキーマのコード

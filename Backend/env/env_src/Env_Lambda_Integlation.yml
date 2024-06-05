@@ -1,45 +1,113 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'RayooTech Inventory Allocation System Infrastructure'
+Description: 'RayooTech 在庫割当システムのインフラストラクチャ'
+
+# パラメータ記述サンプル:
+#   DBHost: 'your-db-host.example.com'
+#   DBPort: '5432'
+#   DBName: 'your-db-name'
+#   DBUser: 'your-db-user'
+#   DBPassword: 'your-db-password'
+#   DBMasterUser: 'your-db-master-user'
+#   DBMasterUserPassword: 'your-db-master-user-password'
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'RayooTech 在庫割当システムのインフラストラクチャ'
+
+Parameters:
+  # マスターユーザー名をパラメータで定義
+  DBMasterUsername:
+    Type: String
+    Description: 'データベースのマスターユーザー名'
+  
+  # マスターユーザーパスワードをパラメータで定義し、NoEchoをtrueに設定して値を隠す  
+  DBMasterUserPassword:
+    Type: String
+    NoEcho: true
+    Description: 'データベースのマスターユーザーパスワード'
 
 Resources:
   # VPC
-  RTVPC:
+  VPC:
     Type: 'AWS::EC2::VPC'
     Properties:
       CidrBlock: '10.0.0.0/16'
       EnableDnsHostnames: true
       EnableDnsSupport: true
-      InstanceTenancy: default
+      InstanceTenancy: 'default'
       Tags:
-        - Key: Name
-          Value: 'RT-Inventory-Allocation-VPC'
+        - Key: 'Name'
+          Value: 'RayooTech VPC'
 
   # インターネットゲートウェイ
-  RTInternetGateway:
+  InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
       Tags:
-        - Key: Name
-          Value: 'RT-Inventory-Allocation-IGW'
+        - Key: 'Name'
+          Value: 'RayooTech InternetGateway'
 
-  # サブネット
-  RTPublicSubnet1:
+  # VPCゲートウェイのアタッチメント  
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # パブリックサブネット
+  PublicSubnet1:
     Type: 'AWS::EC2::Subnet'
     Properties:
-      VpcId: 'RT-Inventory-Allocation-VPC'
+      VpcId: !Ref VPC
       AvailabilityZone: 'ap-northeast-1a'
       CidrBlock: '10.0.1.0/24'
       MapPublicIpOnLaunch: true
       Tags:
-        - Key: Name
-          Value: 'RT-Inventory-Allocation-Public-Subnet-1'
+        - Key: 'Name'
+          Value: 'RayooTech Public Subnet 1'
+
+  # プライベートサブネット  
+  PrivateSubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: 'ap-northeast-1a'
+      CidrBlock: '10.0.2.0/24'
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: 'Name'
+          Value: 'RayooTech Private Subnet 1'
+
+  # パブリックルートテーブル
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: 'Name'
+          Value: 'RayooTech Public Route Table'
+
+  # パブリックルート
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: '0.0.0.0/0'
+      GatewayId: !Ref InternetGateway
+
+  # パブリックサブネットのルートテーブル関連付け
+  PublicSubnet1RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
 
   # セキュリティグループ
-  RTWebSecurityGroup:
+  LambdaSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: 'Security group for RayooTech web servers'
-      VpcId: 'RT-Inventory-Allocation-VPC'
+      GroupDescription: 'Security group for Lambda functions'
+      VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -49,26 +117,93 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: '0.0.0.0/0'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'
+
+  RDSSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for RDS'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: '0.0.0.0/0'
 
   # RDS (PostgreSQL)
-  RTRDSInstance:
+  RDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
-      Engine: postgres
-      EngineVersion: '12.7'
-      DBInstanceClass: db.t3.micro
-      AllocatedStorage: '20'
-      StorageType: gp2
-      MultiAZ: false
-      PubliclyAccessible: false
-      DBName: 'rt_inventory_allocation_db'
-      MasterUsername: 'rtadmin'
-      MasterUserPassword: 'RayooTech2023!'
+      DBInstanceIdentifier: 'rayootech-db'
+      DBName: 'rayootechdb'
+      Engine: 'postgres'
+      EngineVersion: '14.1'
+      DBInstanceClass: 'db.t3.micro'
+      AllocatedStorage: 20
+      StorageType: 'gp2'
+      
+      # マスターユーザー名にDBMasterUsernameパラメータの値を参照
+      MasterUsername: !Ref DBMasterUsername
+      
+      # マスターユーザーパスワードにDBMasterUserPasswordパラメータの値を参照  
+      MasterUserPassword: !Ref DBMasterUserPassword
+      
       VPCSecurityGroups:
-        - 'RT-DB-SecurityGroup'
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      PubliclyAccessible: false
 
-  # Lambda 関数
-  RTLambdaExecutionRole:
+  RDSSubnetGroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: 'Subnet group for RDS'
+      SubnetIds:
+        - !Ref PrivateSubnet1
+
+  # Cognito ユーザープール
+  CognitoUserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: 'RayooTechUserPool'
+      AutoVerifiedAttributes:
+        - 'email'
+      UsernameAttributes:
+        - 'email'
+      Schema:
+        - Name: 'email'
+          AttributeDataType: 'String'
+          Required: true
+          Mutable: false
+        - Name: 'given_name'
+          AttributeDataType: 'String'
+          Required: true
+          Mutable: true
+        - Name: 'family_name'
+          AttributeDataType: 'String'
+          Required: true
+          Mutable: true
+
+  # Cognito ユーザープールクライアント
+  CognitoUserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: 'RayooTechUserPoolClient'
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - 'ADMIN_NO_SRP_AUTH'
+
+  # Lambda 実行ロール
+  LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -82,7 +217,7 @@ Resources:
               - 'sts:AssumeRole'
       Path: '/'
       Policies:
-        - PolicyName: 'RTLambdaExecutionPolicy'
+        - PolicyName: 'LambdaExecutionPolicy'
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -92,16 +227,32 @@ Resources:
                   - 'logs:CreateLogStream'
                   - 'logs:PutLogEvents'
                 Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'rds:*'
+                  
+                # RDSInstanceのARNを!Subを使って構築し、Resourceプロパティに設定  
+                Resource: !Sub 'arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:rayootech-db'
 
-  RTMainLambdaFunction:
+  # Lambda 関数
+  MainLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'RTMainFunction'
+      FunctionName: 'MainFunction'
       Runtime: 'python3.9'
       Handler: 'main.handler'
-      Role: 'RTLambdaExecutionRole'
+      
+      # LambdaExecutionRoleのArnを取得し、Roleプロパティに設定
+      Role: !GetAtt LambdaExecutionRole.Arn
+      
       Code:
-        ZipFile: |
+        ZipFile: !Sub |
           import os
           from fastapi import FastAPI, Depends
           from sqlalchemy.orm import Session
@@ -123,35 +274,62 @@ Resources:
 
           @app.post("/orders")
           def create_order(order: OrderRequest, db: Session = Depends(get_db)):
-              # Create order logic
+              # 注文作成ロジック
 
           @app.post("/inventories")
           def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
-              # Create inventory logic
+              # 在庫作成ロジック
 
           @app.post("/allocations")
           def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
-              # Allocate inventory logic
+              # 在庫割当ロジック
 
           def handler(event, context):
-              # Lambda handler logic
+              # Lambda ハンドラーロジック
+              
       Environment:
         Variables:
-          DB_HOST: 'rt-inventory-allocation-db.abcdefghijkl.ap-northeast-1.rds.amazonaws.com'
-          DB_PORT: '5432'
-          DB_NAME: 'rt_inventory_allocation_db'
-          DB_USER: 'rtadmin'
-          DB_PASSWORD: 'RayooTech2023!'
+          # RDSInstanceのエンドポイントのアドレスを取得し、DB_HOSTに設定
+          DB_HOST: !GetAtt RDSInstance.Endpoint.Address
+          
+          # RDSInstanceのエンドポイントのポートを取得し、DB_PORTに設定
+          DB_PORT: !GetAtt RDSInstance.Endpoint.Port
+          
+          DB_NAME: 'rayootechdb'
+          
+          # DBMasterUsernameパラメータの値を参照し、DB_USERに設定
+          DB_USER: !Ref DBMasterUsername
+          
+          # DBMasterUserPasswordパラメータの値を参照し、DB_PASSWORDに設定  
+          DB_PASSWORD: !Ref DBMasterUserPassword
+          
+          # !Subを使ってCognitoユーザープールのJWKSエンドポイントURLを構築し、COGNITO_JWKS_URLに設定
+          COGNITO_JWKS_URL: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}/.well-known/jwks.json"
+          
+          # CognitoUserPoolClientの参照をCOGNITO_AUDIENCEに設定
+          COGNITO_AUDIENCE: !Ref CognitoUserPoolClient
+          
+          # !Subを使ってCognitoユーザープールのイシュアURLを構築し、COGNITO_ISSUERに設定
+          COGNITO_ISSUER: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
+          
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
 
-  RTAllocationLambdaFunction:
+  AllocationLambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
-      FunctionName: 'RTAllocationFunction'
+      FunctionName: 'AllocationFunction'
       Runtime: 'python3.9'
       Handler: 'allocation.allocate_inventory'
-      Role: 'RTLambdaExecutionRole'
+      
+      # LambdaExecutionRoleのArnを取得し、Roleプロパティに設定
+      Role: !GetAtt LambdaExecutionRole.Arn
+      
       Code:
-        ZipFile: |
+        ZipFile: !Sub |
           from sqlalchemy.orm import Session
           from models import Order, Inventory, AllocationResult
           from datetime import datetime
@@ -166,157 +344,179 @@ Resources:
           handler.setFormatter(formatter)
           logger.addHandler(handler)
 
-          def allocate_inventory(db: Session, allocation_method: str):
-              # Allocation logic
+          def allocate_inventory(order: Order, db: Session):
+              # 在庫割当ロジック
 
-  RTModelsLambdaLayer:
+          def handler(event, context):
+              # Lambda ハンドラーロジック
+              
+      Environment:
+        Variables:
+          # RDSInstanceのエンドポイントのアドレスを取得し、DB_HOSTに設定        
+          DB_HOST: !GetAtt RDSInstance.Endpoint.Address
+          
+          # RDSInstanceのエンドポイントのポートを取得し、DB_PORTに設定
+          DB_PORT: !GetAtt RDSInstance.Endpoint.Port
+          
+          DB_NAME: 'rayootechdb'
+          
+          # DBMasterUsernameパラメータの値を参照し、DB_USERに設定
+          DB_USER: !Ref DBMasterUsername
+          
+          # DBMasterUserPasswordパラメータの値を参照し、DB_PASSWORDに設定
+          DB_PASSWORD: !Ref DBMasterUserPassword
+          
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+        SubnetIds:
+          - !Ref PrivateSubnet1
+
+  # Lambda レイヤー 
+  ModelsLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTModelsLayer'
-      Description: 'RayooTech Models layer'
+      LayerName: 'ModelsLayer'
+      Description: 'Models layer'
       Content:
-        ZipFile: |
-          from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
-          from sqlalchemy.orm import relationship
-          from database import Base
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: 'models.zip'
+      CompatibleRuntimes:
+        - python3.9
 
-          class Order(Base):
-              # Order model
-
-          class Inventory(Base):
-              # Inventory model
-
-          class AllocationResult(Base):
-              # AllocationResult model
-
-  RTDatabaseLambdaLayer:
+  DatabaseLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTDatabaseLayer'
-      Description: 'RayooTech Database layer'
+      LayerName: 'DatabaseLayer'
+      Description: 'Database layer'
       Content:
-        ZipFile: |
-          from sqlalchemy import create_engine
-          from sqlalchemy.ext.declarative import declarative_base
-          from sqlalchemy.orm import sessionmaker
-          import os
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: 'database.zip'
+      CompatibleRuntimes:
+        - python3.9
 
-          DB_HOST = os.environ.get("DB_HOST")
-          DB_PORT = os.environ.get("DB_PORT")
-          DB_NAME = os.environ.get("DB_NAME")
-          DB_USER = os.environ.get("DB_USER")
-          DB_PASSWORD = os.environ.get("DB_PASSWORD")
-
-          SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-          engine = create_engine(SQLALCHEMY_DATABASE_URL)
-          SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-          Base = declarative_base()
-
-  RTSchemasLambdaLayer:
+  SchemasLambdaLayer:
     Type: 'AWS::Lambda::LayerVersion'
     Properties:
-      LayerName: 'RTSchemasLayer'
-      Description: 'RayooTech Schemas layer'
+      LayerName: 'SchemasLayer'
+      Description: 'Schemas layer'
       Content:
-        ZipFile: |
-          from pydantic import BaseModel
-          from datetime import datetime
-          from typing import List
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: 'schemas.zip'
+      CompatibleRuntimes:
+        - python3.9
 
-          class TokenPayload(BaseModel):
-              # TokenPayload schema
+  UtilsLambdaLayer:
+    Type: 'AWS::Lambda::LayerVersion'
+    Properties:
+      LayerName: 'UtilsLayer'
+      Description: 'Utils layer'
+      Content:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: 'utils.zip'
+      CompatibleRuntimes:
+        - python3.9
 
-          class OrderRequest(BaseModel):
-              # OrderRequest schema
-
-          class InventoryRequest(BaseModel):
-              # InventoryRequest schema
-
-          class AllocationRequest(BaseModel):
-              # AllocationRequest schema
-
-          class OrderResponse(BaseModel):
-              # OrderResponse schema
-
-          class InventoryResponse(BaseModel):
-              # InventoryResponse schema
-
-          class AllocationResultResponse(BaseModel):
-              # AllocationResultResponse schema
-
-  # API Gateway
-  RTAPIGateway:
+  # API Gateway 
+  RayooTechApi:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
-      Name: 'RayooTech Inventory Allocation API'
-      Description: 'API for RayooTech Inventory Allocation System'
+      Name: 'RayooTechApi'
+      Description: 'RayooTech API'
 
-  # API Gateway リソース
-  RTOrdersResource:
+  RayooTechApiOrdersResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ParentId: 'RTAPIGateway-RootResourceId'
+      RestApiId: !Ref RayooTechApi
+      ParentId: !GetAtt RayooTechApi.RootResourceId
       PathPart: 'orders'
 
-  RTInventoriesResource:
+  RayooTechApiOrdersPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref RayooTechApi
+      ResourceId: !Ref RayooTechApiOrdersResource
+      HttpMethod: 'POST'
+      AuthorizationType: 'COGNITO_USER_POOLS'
+      AuthorizerId: !Ref RayooTechApiAuthorizer
+      Integration:
+        Type: 'AWS_PROXY'
+        IntegrationHttpMethod: 'POST'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+
+  RayooTechApiInventoriesResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ParentId: 'RTAPIGateway-RootResourceId'
+      RestApiId: !Ref RayooTechApi
+      ParentId: !GetAtt RayooTechApi.RootResourceId
       PathPart: 'inventories'
 
-  RTAllocateResource:
+  RayooTechApiInventoriesPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref RayooTechApi
+      ResourceId: !Ref RayooTechApiInventoriesResource
+      HttpMethod: 'POST'
+      AuthorizationType: 'COGNITO_USER_POOLS'
+      AuthorizerId: !Ref RayooTechApiAuthorizer
+      Integration:
+        Type: 'AWS_PROXY'
+        IntegrationHttpMethod: 'POST'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
+
+  RayooTechApiAllocationsResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ParentId: 'RTAPIGateway-RootResourceId'
-      PathPart: 'allocate'
+      RestApiId: !Ref RayooTechApi
+      ParentId: !GetAtt RayooTechApi.RootResourceId
+      PathPart: 'allocations'
 
-  RTAllocationResultsResource:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: 'RTAPIGateway'
-      ParentId: 'RTAPIGateway-RootResourceId'
-      PathPart: 'allocation-results'
-
-  # API Gateway メソッド
-  # Orders リソースのメソッド
-  RTOrdersPostMethod:
+  RayooTechApiAllocationsPostMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ResourceId: 'RTOrdersResource'
-      HttpMethod: POST
-      AuthorizationType: NONE
+      RestApiId: !Ref RayooTechApi
+      ResourceId: !Ref RayooTechApiAllocationsResource
+      HttpMethod: 'POST'
+      AuthorizationType: 'COGNITO_USER_POOLS'
+      AuthorizerId: !Ref RayooTechApiAuthorizer
       Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/RTMainLambdaFunction/invocations'
+        Type: 'AWS_PROXY'
+        IntegrationHttpMethod: 'POST'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MainLambdaFunction.Arn}/invocations'
 
-  RTOrdersGetMethod:
-    Type: 'AWS::ApiGateway::Method'
+  RayooTechApiDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - RayooTechApiOrdersPostMethod
+      - RayooTechApiInventoriesPostMethod
+      - RayooTechApiAllocationsPostMethod
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ResourceId: 'RTOrdersResource'
-      HttpMethod: GET
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/RTMainLambdaFunction/invocations'
+      RestApiId: !Ref RayooTechApi
+      StageName: 'prod'
 
-  # Inventories リソースのメソッド
-  RTInventoriesPostMethod:
-    Type: 'AWS::ApiGateway::Method'
+  RayooTechApiAuthorizer:
+    Type: 'AWS::ApiGateway::Authorizer'
     Properties:
-      RestApiId: 'RTAPIGateway'
-      ResourceId: 'RTInventoriesResource'
-      HttpMethod: POST
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: 'arn:aws:api
+      RestApiId: !Ref RayooTechApi
+      Name: 'RayooTechApiAuthorizer'
+      Type: 'COGNITO_USER_POOLS'
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+        
+  # Lambda 関数の呼び出し権限
+  MainLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt MainLambdaFunction.Arn
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RayooTechApi}/*'
+
+  AllocationLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !GetAtt AllocationLambdaFunction.Arn
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RayooTechApi}/*'
+          
