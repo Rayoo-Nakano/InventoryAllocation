@@ -21,4 +21,4 @@ phases:
       - aws s3 cp Backend/requirements.txt s3://codebuild-inventory-test1/configuration/
 artifacts:
   files:
-    - InventoryTest1.zip
+#    - InventoryTest1.zip
