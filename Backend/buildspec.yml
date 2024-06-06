@@ -19,6 +19,7 @@ phases:
       - echo $TargetVersion
       - sed -i -e "s/{{CurrentVersion}}/$CurrentVersion/g" Backend/appspec.yml
       - sed -i -e "s/{{TargetVersion}}/$TargetVersion/g" Backend/appspec.yml
+      
       - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
