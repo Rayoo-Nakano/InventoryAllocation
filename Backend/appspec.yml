@@ -5,5 +5,12 @@ Resources:
       Properties:
         Name: "InventoryAllocationTest1"
         Alias: "Test1"
-        CurrentVersion: "{{CurrentVersion}}"
-        TargetVersion: "{{TargetVersion}}"
+        CurrentVersion: "1"
+        TargetVersion: "2"
+#        CurrentVersion: "{{CurrentVersion}}"
+#        TargetVersion: "{{TargetVersion}}"
+
+Hooks:
+  - BeforeAllowTraffic: "LambdaFunctionToValidateBeforeTrafficShift"
+  - AfterAllowTraffic: "LambdaFunctionToValidateAfterTrafficShift"
+
