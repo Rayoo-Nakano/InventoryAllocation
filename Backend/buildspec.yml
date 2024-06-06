@@ -9,7 +9,9 @@ phases:
     commands:
       - zip -r InventoryTest1.zip ./
       - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
-      - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest1 --name dev | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
+      - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
+      - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest1 --name Test1 | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
   post_build:
     commands:
       - ls
