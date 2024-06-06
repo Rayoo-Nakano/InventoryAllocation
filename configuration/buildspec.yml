@@ -16,7 +16,8 @@ phases:
   post_build:
     commands:
       - zip -r InventoryTest1.zip ./Backend/src
-      - aws lambda update-function-code --function-name InventoryAllocationTest1 --zip-file fileb://InventoryTest1.zip
+      - FUNCTION_NAME="InventoryAllocationTest1"
+      - aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://InventoryTest1.zip
       # Backup
 #      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
 #      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
@@ -25,18 +26,22 @@ phases:
 
 
     # Lambda関数名
-      - FUNCTION_NAME="InventoryAllocationTest1"
+      - echo "Starting appspec.yml create process..."
+      - echo "Name: $FUNCTION_NAME"
 
-# エイリアス、現在のバージョン、ターゲットバージョンを取得
+    # エイリアス、現在のバージョン、ターゲットバージョンを取得
       - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
+      - echo "Alias: $ALIAS"
       - CURRENT_VERSION=$(aws lambda list-versions-by-function --function-name $FUNCTION_NAME --query 'Versions[?Version!=`$LATEST`]|max_by(@, &to_number(Version)).Version' --output text)
+      - echo "CurrentVersion: $CURRENT_VERSION"
       - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
+      - echo "TargetVersion: $TARGET_VERSION"
 
-# AppSpecファイルのプレースホルダーを実際の値に置き換える
-      - sed -i "s/{{Name}}/$FUNCTION_NAME/g" configuration/appspec.yml
-      - sed -i "s/{{Alias}}/$ALIAS/g" configuration/appspec.yml
-      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g" configuration/appspec.yml
-      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g" configuration/appspec.yml
+    # AppSpecファイルのプレースホルダーを実際の値に置き換える
+      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
+      - sed -i "s/{{Alias}}/$ALIAS/g"                     configuration/appspec.yml
+      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
+      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
       - cat configuration/appspec.yml
       - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
 
@@ -44,3 +49,4 @@ phases:
 artifacts:
   files:
     - InventoryTest1.zip
+    - appspec.yml
