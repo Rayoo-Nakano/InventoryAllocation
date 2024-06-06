@@ -32,8 +32,14 @@ Parameters:
   ParameterFilePath:
     Type: String
     Default: 's3://my-parameter-bucket/LambdaParameters.json'
+    Description: 'パラメータファイルのパス'
+  VpcEndpointIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: 'VPCエンドポイントのIDのリスト'
 
 Resources:
+  # FastAPIアプリケーションを実行するLambda関数
   FastAPIFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -51,6 +57,7 @@ Resources:
       MemorySize: 128
       FunctionRegion: 'ap-northeast-1'
 
+  # Lambda関数の実行に必要なIAMロール
   LambdaExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -77,6 +84,7 @@ Resources:
                   - 's3:GetObject'
                 Resource: !Sub 'arn:aws:s3:::my-parameter-bucket/LambdaParameters.json'
 
+  # API Gatewayの定義
   APIGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
@@ -84,8 +92,9 @@ Resources:
       EndpointConfiguration:
         Types:
           - REGIONAL
-        VpcEndpointIds: []
+        VpcEndpointIds: !Ref VpcEndpointIds
 
+  # Cognito User Poolsを使用したAPIリクエストの認証
   APIGatewayAuthorizer:
     Type: 'AWS::ApiGateway::Authorizer'
     Properties:
@@ -96,6 +105,7 @@ Resources:
       RestApiId: !Ref APIGateway
       IdentitySource: 'method.request.header.Authorization'
 
+  # API Gatewayのリソース定義
   APIGatewayResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
@@ -103,6 +113,7 @@ Resources:
       PathPart: '{proxy+}'
       RestApiId: !Ref APIGateway
 
+  # API Gatewayのメソッド定義とLambda関数との統合
   APIGatewayMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
@@ -116,6 +127,7 @@ Resources:
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/${FastAPIFunction.Arn}/invocations'
 
+  # API Gatewayの変更をデプロイ
   APIGatewayDeployment:
     Type: 'AWS::ApiGateway::Deployment'
     DependsOn:
@@ -125,8 +137,11 @@ Resources:
       StageName: !Ref APIGatewayStageName
 
 Outputs:
+  # API GatewayのエンドポイントURLを出力
   APIGatewayInvokeURL:
+    Description: 'API GatewayのエンドポイントURL'
     Value: !Sub 'https://${APIGateway}.execute-api.ap-northeast-1.amazonaws.com/${APIGatewayStageName}'
+
 ```
 
 ### 2. パラメータファイル説明:
@@ -159,6 +174,7 @@ Outputs:
   "DatabaseSecretArn": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:MyDatabaseSecret-abcdef",
   "LambdaCodeBucket": "my-lambda-code-bucket",
   "LambdaCodeKey": "fastapi-app/lambda_function.zip",
-  "APIGatewayStageName": "prod"
+  "VpcEndpointIds": ["vpce-1234abcd", "vpce-5678efgh"],
+  "APIGatewayStageName": "dev"
 }
 ```
