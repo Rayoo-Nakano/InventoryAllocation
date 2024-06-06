@@ -23,6 +23,6 @@ phases:
       - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
       
-#artifacts:
-#  files:
-#    - InventoryTest1.zip
+artifacts:
+  files:
+    - InventoryTest1.zip
