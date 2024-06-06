@@ -7,7 +7,7 @@ phases:
 
   build:
     commands:
-      - zip -r InventoryTest1.zip ./
+      - zip -r InventoryTest1.zip ./Backend/src
       - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
       - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
