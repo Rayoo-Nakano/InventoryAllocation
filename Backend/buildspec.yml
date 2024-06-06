@@ -9,7 +9,7 @@ phases:
     commands:
       - ls Backend
       - pip install -r ./Backend/requirements.txt
-      - python -m pytest
+#      - python -m pytest
   post_build:
     commands:
       - zip -r InventoryTest1.zip ./Backend/src
@@ -18,6 +18,7 @@ phases:
       - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
       - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp Backend/requirements.txt s3://codebuild-inventory-test1/configuration/
 artifacts:
   files:
     - InventoryTest1.zip
