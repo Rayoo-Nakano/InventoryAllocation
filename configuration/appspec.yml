@@ -3,7 +3,7 @@ Resources:
   - InventoryAllocationTest1:
       Type: AWS::Lambda::Function
       Properties:
-        Name: "{{FUNCTION_NAME}}"
+        Name: "InventoryAllocationTest1"
         Alias: "{{Alias}}"
         CurrentVersion: "{{CurrentVersion}}"
         TargetVersion: "{{TargetVersion}}"

@@ -17,9 +17,7 @@ phases:
     commands:
       - zip -r InventoryTest1.zip ./Backend/src
       # Lambda関数名
-      - FUNCTION_NAME="InventoryAllocationTest1"
-      - echo "Name: $FUNCTION_NAME"
-      - aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://InventoryTest1.zip
+      - aws lambda update-function-code --function-name InventoryAllocationTest1 --zip-file fileb://InventoryTest1.zip
       # Backup
       - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
@@ -34,7 +32,7 @@ phases:
       - echo "TargetVersion: $TARGET_VERSION"
 
     # AppSpecファイルのプレースホルダーを実際の値に置き換える
-      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
+#      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
       - sed -i "s/{{Alias}}/$ALIAS/g"                     configuration/appspec.yml
       - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
       - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
