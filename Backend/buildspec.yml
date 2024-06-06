@@ -19,8 +19,8 @@ phases:
       - TargetVersion=$(echo $(aws lambda list-versions-by-function --function-name InventoryAllocationTest1 | grep Version | tail -1 | tr -cd "[0-9]"))
       - echo $CurrentVersion
       - echo $TargetVersion
-      - sed -i -e "s/{{CurrentVersion}}/$CurrentVersion/g" appspec.yml
-      - sed -i -e "s/{{TargetVersion}}/$TargetVersion/g" appspec.yml
+      - sed -i -e "s/{{CurrentVersion}}/$CurrentVersion/g" s3://codebuild-inventory-test1/configuration/appspec.yml
+      - sed -i -e "s/{{TargetVersion}}/$TargetVersion/g" s3://codebuild-inventory-test1/configuration/appspec.yml
 
 artifacts:
   files:
