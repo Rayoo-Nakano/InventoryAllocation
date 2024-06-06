@@ -9,7 +9,7 @@ phases:
     commands:
       - ls
       - ls Backend
-      - configlation
+      - ls configuration
 
       - pip install -r ./configuration/requirements.txt
 #      - python -m pytest
