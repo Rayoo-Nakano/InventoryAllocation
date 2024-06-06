@@ -33,10 +33,10 @@ phases:
       - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
 
 # AppSpecファイルのプレースホルダーを実際の値に置き換える
-      - sed -i "s/{{Name}}/$FUNCTION_NAME/g" appspec.yaml
-      - sed -i "s/{{Alias}}/$ALIAS/g" appspec.yaml
-      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g" appspec.yaml
-      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g" appspec.yaml
+      - sed -i "s/{{Name}}/$FUNCTION_NAME/g" configuration/appspec.yaml
+      - sed -i "s/{{Alias}}/$ALIAS/g" configuration/appspec.yaml
+      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g" configuration/appspec.yaml
+      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g" configuration/appspec.yaml
       - cat configuration/appspec.yml
       - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
 
