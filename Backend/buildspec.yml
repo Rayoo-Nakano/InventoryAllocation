@@ -10,14 +10,14 @@ phases:
       - zip -r InventoryTest1.zip ./Backend/src
       - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
 
-      - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest2 --name Test2 | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
+      - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest1 --name Test1 | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
       - echo $CurrentVersion
 
   post_build:
     commands:
       - ls
-      - aws lambda publish-version --function-name InventoryAllocationTest2
-      - TargetVersion=$(echo $(aws lambda list-versions-by-function --function-name InventoryAllocationTest2 | grep FunctionVersion | tail -1 | tr -cd "[0-9]"))
+      - aws lambda publish-version --function-name InventoryAllocationTest1
+      - TargetVersion=$(echo $(aws lambda list-versions-by-function --function-name InventoryAllocationTest1 | grep Version | tail -1 | tr -cd "[0-9]"))
       - echo $TargetVersion
 
       - sed -i -e "s/{{CurrentVersion}}/$CurrentVersion/g" Backend/appspec.yml
