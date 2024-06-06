@@ -1,9 +1,9 @@
 version: 0.0
 Resources:
-  - HelloWorld:
+  - InventoryAllocationTest2:
       Type: AWS::Lambda::Function
       Properties:
-        Name: "InventoryAllocationTest1"
-        Alias: "test1"
+        Name: "InventoryAllocationTest2"
+        Alias: "test2"
         CurrentVersion: "{{CurrentVersion}}"
         TargetVersion: "{{TargetVersion}}"
