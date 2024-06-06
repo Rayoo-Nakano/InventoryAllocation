@@ -11,7 +11,7 @@ phases:
       - ls Backend
       - configlation
 
-      - pip install -r ./configlation/requirements.txt
+      - pip install -r ./configuration/requirements.txt
 #      - python -m pytest
   post_build:
     commands:
@@ -19,9 +19,9 @@ phases:
       - aws lambda update-function-code --function-name InventoryAllocationTest1 --zip-file fileb://InventoryTest1.zip
       # Backup
 #      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
-      - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
-      - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
-      - aws s3 cp Backend/requirements.txt s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
       
 #artifacts:
 #  files:
