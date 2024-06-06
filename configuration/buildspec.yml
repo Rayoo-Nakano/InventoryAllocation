@@ -19,10 +19,28 @@ phases:
       - aws lambda update-function-code --function-name InventoryAllocationTest1 --zip-file fileb://InventoryTest1.zip
       # Backup
 #      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
-      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
+#      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
-      
+
+
+    # Lambda関数名
+      - FUNCTION_NAME="InventoryAllocationTest1"
+
+# エイリアス、現在のバージョン、ターゲットバージョンを取得
+      - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
+      - CURRENT_VERSION=$(aws lambda list-versions-by-function --function-name $FUNCTION_NAME --query 'Versions[?Version!=`$LATEST`]|max_by(@, &to_number(Version)).Version' --output text)
+      - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
+
+# AppSpecファイルのプレースホルダーを実際の値に置き換える
+      - sed -i "s/{{Name}}/$FUNCTION_NAME/g" appspec.yaml
+      - sed -i "s/{{Alias}}/$ALIAS/g" appspec.yaml
+      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g" appspec.yaml
+      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g" appspec.yaml
+      - cat configuration/appspec.yml
+      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
+
+
 artifacts:
   files:
     - InventoryTest1.zip
