@@ -16,19 +16,15 @@ phases:
   post_build:
     commands:
       - zip -r InventoryTest1.zip ./Backend/src
+      # Lambda関数名
       - FUNCTION_NAME="InventoryAllocationTest1"
+      - echo "Name: $FUNCTION_NAME"
       - aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://InventoryTest1.zip
       # Backup
-#      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
-#      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
 
-
-    # Lambda関数名
       - echo "Starting appspec.yml create process..."
-      - echo "Name: $FUNCTION_NAME"
-
     # エイリアス、現在のバージョン、ターゲットバージョンを取得
       - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
       - echo "Alias: $ALIAS"
