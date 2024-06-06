@@ -7,24 +7,24 @@ phases:
 
   build:
     commands:
-      - cat ./buildspec.yml
-      - cat Backend/buildspec.yml
       - zip -r InventoryTest1.zip ./Backend/src
+      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
+      - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
+
       - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest2 --name Test2 | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
+      - echo $CurrentVersion
 
   post_build:
     commands:
       - ls
       - aws lambda publish-version --function-name InventoryAllocationTest2
-      - TargetVersion=$(echo $(aws lambda list-versions-by-function --function-name InventoryAllocationTest2 | grep Version | tail -1 | tr -cd "[0-9]"))
-      - echo $CurrentVersion
+      - TargetVersion=$(echo $(aws lambda list-versions-by-function --function-name InventoryAllocationTest2 | grep FunctionVersion | tail -1 | tr -cd "[0-9]"))
       - echo $TargetVersion
+
       - sed -i -e "s/{{CurrentVersion}}/$CurrentVersion/g" Backend/appspec.yml
       - sed -i -e "s/{{TargetVersion}}/$TargetVersion/g" Backend/appspec.yml
-      
-      - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
-      - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
-      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
+     
 
 artifacts:
   files:
