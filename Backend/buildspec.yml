@@ -15,10 +15,11 @@ phases:
       - zip -r InventoryTest1.zip ./Backend/src
       - aws lambda update-function-code --function-name InventoryAllocationTest1 --zip-file fileb://InventoryTest1.zip
       # Backup
-#      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
+      - aws s3 cp InventoryTest1.zip s3://codebuild-inventory-test1/
       - aws s3 cp Backend/appspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp Backend/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp Backend/requirements.txt s3://codebuild-inventory-test1/configuration/
-artifacts:
-  files:
-    - InventoryTest1.zip
+      
+#artifacts:
+#  files:
+#    - InventoryTest1.zip
