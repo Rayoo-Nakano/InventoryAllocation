@@ -7,6 +7,8 @@ phases:
 
   build:
     commands:
+      - cat ./buildspec.yml
+      - cat Backend/buildspec.yml
       - zip -r InventoryTest1.zip ./Backend/src
       - CurrentVersion=$(echo $(aws lambda get-alias --function-name InventoryAllocationTest2 --name Test2 | grep FunctionVersion | tail -1 |tr -cd "[0-9]"))
 
