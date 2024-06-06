@@ -26,11 +26,8 @@ phases:
       - echo "Starting appspec.yml create process..."
     # エイリアス、現在のバージョン、ターゲットバージョンを取得
       - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
-      - echo "Alias: $ALIAS"
       - CURRENT_VERSION=$(aws lambda list-versions-by-function --function-name $FUNCTION_NAME --query 'Versions[?Version!=`$LATEST`]|max_by(@, &to_number(Version)).Version' --output text)
-      - echo "CurrentVersion: $CURRENT_VERSION"
       - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
-      - echo "TargetVersion: $TARGET_VERSION"
 
     # AppSpecファイルのプレースホルダーを実際の値に置き換える
 #      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
