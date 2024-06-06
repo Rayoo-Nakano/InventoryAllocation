@@ -5,7 +5,7 @@ Resources:
       Properties:
         Name: "InventoryAllocationTest1"
         Alias: "Test1"
-        CurrentVersion: "1"
+        CurrentVersion: "2"
         TargetVersion: "2"
 #        CurrentVersion: "{{CurrentVersion}}"
 #        TargetVersion: "{{TargetVersion}}"
