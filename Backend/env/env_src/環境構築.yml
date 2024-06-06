@@ -11,8 +11,14 @@ Parameters:
   PublicSubnet1CIDR:
     Type: String
 
+  # PublicSubnet2CIDR:
+  #   Type: String
+
   PrivateSubnet1CIDR:
     Type: String
+
+  PrivateSubnet2CIDR:
+    Type: String  
 
   DBMasterUsername:
     Type: String
@@ -71,6 +77,18 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${EnvironmentName}-Private-Subnet-1'
+
+  # プライベートサブネット2の定義
+  PrivateSubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: ap-northeast-1c
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${EnvironmentName}-Private-Subnet-2'
 
   # NATゲートウェイ用のElastic IPの定義
   NatGateway1EIP:
@@ -135,6 +153,20 @@ Resources:
       SubnetId: !Ref PrivateSubnet1
       RouteTableId: !Ref PrivateRouteTable1
 
+  # プライベートサブネット2をプライベートルートテーブル1に関連付け
+  PrivateSubnet2RouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable1
+
+  # Lambdaセキュリティー
+  LambdaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for Lambda'
+      VpcId: !Ref VPC
+
   # RDSセキュリティグループの定義
   RDSSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -154,13 +186,13 @@ Resources:
       DBSubnetGroupDescription: 'Subnet group for RDS'
       SubnetIds:
         - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
 
   # RDSインスタンスの定義
   RDSInstance:
     Type: 'AWS::RDS::DBInstance'
     Properties:
       Engine: postgres
-      EngineVersion: 14.1
       DBInstanceClass: db.t3.micro
       AllocatedStorage: 20
       StorageType: gp2
@@ -187,6 +219,7 @@ Resources:
       Type: COGNITO_USER_POOLS
       ProviderARNs:
         - !GetAtt CognitoUserPool.Arn
+      IdentitySource: 'method.request.header.Authorization'
 
   # API Gateway リソース (items) の定義
   APIGatewayResourceItems:
