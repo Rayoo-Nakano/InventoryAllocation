@@ -19,6 +19,7 @@ class Inventory(Base):
     quantity = Column(Integer)
     receipt_date = Column(Date)
     unit_price = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)  # 追加
 
 class AllocationResult(Base):
     __tablename__ = "allocation_results"
