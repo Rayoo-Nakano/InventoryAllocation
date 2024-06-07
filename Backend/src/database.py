@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 # .env.testファイルのパスを設定する
-env_file_path = ".env.test"
+env_file_path = os.path.join(os.path.dirname(__file__), ".env.test")
 
 # .env.testファイルが存在するかチェックする
 if not os.path.exists(env_file_path):

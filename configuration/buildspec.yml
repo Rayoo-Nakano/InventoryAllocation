@@ -12,11 +12,11 @@ phases:
     commands:
     # フォルダーの確認
       - ls Backend
+      - ls Backend/src
       - ls configuration
     # Lambda様パッケージ化
       - zip -r InventoryTest1.zip ./Backend/src
 # 単体試験の組込予定
-      - ls Backend/src
       - echo "Starting Unit tests..."
       - pytest Backend/tests/UT_src
       - echo "Unit tests Completed..."
