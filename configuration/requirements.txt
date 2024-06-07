@@ -3,3 +3,4 @@ fastapi
 sqlalchemy
 python-jose
 # pydantic
+psycopg2-binary     # PythonでPostgreSQLデータベースに接続するためのライブラリ
