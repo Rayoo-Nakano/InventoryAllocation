@@ -8,7 +8,10 @@ import pytest
 from sqlalchemy.orm import Session
 from models import Order, Inventory, AllocationResult
 from allocation import allocate_inventory
-from database import TestingSessionLocal
+from database import Base, TestingSessionLocal, engine
+
+# テスト前にデータベースのテーブルを作成
+Base.metadata.create_all(bind=engine)
 
 def test_allocate_inventory_fifo():
     db = TestingSessionLocal()
