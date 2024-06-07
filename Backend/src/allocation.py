@@ -41,6 +41,10 @@ def allocate_inventory(db: Session, allocation_strategy: str):
                 inventory.quantity -= quantity_to_allocate
 
                 logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.id} at price {inventory.unit_price}")
+
+                if remaining_quantity <= 0:
+                    break
+
         elif allocation_strategy == "LIFO":
             # 在庫を取得し、入荷日時の降順でソート
             inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.created_at.desc()).all()
