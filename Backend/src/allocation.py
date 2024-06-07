@@ -27,8 +27,7 @@ def allocate_inventory(db: Session, allocation_strategy: str):
 
         if allocation_strategy == "FIFO":
             # 在庫を取得し、入荷日時の昇順でソート
-            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.inventory_id).all()
-
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.id).all()
 
             for inventory in inventories:
                 if remaining_quantity <= 0:

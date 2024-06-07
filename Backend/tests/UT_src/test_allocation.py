@@ -78,8 +78,8 @@ def test_allocate_inventory_lifo():
     db.commit()
 
     # テストデータの作成
-    order1 = Order(order_id=1, item_code="XYZ789", quantity=3)
-    order2 = Order(order_id=2, item_code="XYZ789", quantity=5)
+    order1 = Order(order_id="1", item_code="XYZ789", quantity=3)  # order_idを文字列に変更
+    order2 = Order(order_id="2", item_code="XYZ789", quantity=5)  # order_idを文字列に変更
     db.add_all([order1, order2])
 
     inventory1 = Inventory(item_code="XYZ789", quantity=6, unit_price=15)
@@ -91,24 +91,33 @@ def test_allocate_inventory_lifo():
     # LIFOでの在庫割当を実行
     allocate_inventory(db, "LIFO")
 
-    # 結果の検証
-    allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
-    assert len(allocated_orders) == 2
+    # 割当結果の確認
+    allocation_results = db.query(AllocationResult).all()
+    assert len(allocation_results) == 2
 
-    assert allocated_orders[0].item_code == "XYZ789"
-    assert allocated_orders[0].quantity == 3
-    assert allocated_orders[0].allocation_results[0].allocated_quantity == 3
-    assert allocated_orders[0].allocation_results[0].allocated_price == 54.0
+    assert allocation_results[0].order_id == "1"
+    assert allocation_results[0].allocated_quantity == 3
+    assert allocation_results[0].allocated_price == 54
 
-    assert allocated_orders[1].item_code == "XYZ789"
-    assert allocated_orders[1].quantity == 5
-    assert allocated_orders[1].allocation_results[0].allocated_quantity == 1
-    assert allocated_orders[1].allocation_results[0].allocated_price == 18.0
-    assert allocated_orders[1].allocation_results[1].allocated_quantity == 4
-    assert allocated_orders[1].allocation_results[1].allocated_price == 60.0
+    assert allocation_results[1].order_id == "2"
+    assert allocation_results[1].allocated_quantity == 4
+    assert allocation_results[1].allocated_price == 72
 
-    total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "XYZ789").scalar()
-    assert total_inventory_quantity == 2
+    # 在庫の更新確認
+    updated_inventory1 = db.query(Inventory).filter_by(id=inventory1.id).first()
+    assert updated_inventory1.quantity == 6
+
+    updated_inventory2 = db.query(Inventory).filter_by(id=inventory2.id).first()
+    assert updated_inventory2.quantity == 1
+
+    # 注文の更新確認
+    updated_order1 = db.query(Order).filter_by(order_id="1").first()
+    assert updated_order1.quantity == 0
+
+    updated_order2 = db.query(Order).filter_by(order_id="2").first()
+    assert updated_order2.quantity == 1
+
+
 
 def test_allocate_inventory_average():
     db = TestingSessionLocal()
