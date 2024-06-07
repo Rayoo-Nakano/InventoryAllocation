@@ -57,7 +57,7 @@ def allocate_inventory(db: Session, allocation_strategy: str):
                 remaining_quantity -= quantity_to_allocate
                 inventory.quantity -= quantity_to_allocate
 
-                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.inventory_id} at price {inventory.unit_price}")
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory_id} at price {inventory.unit_price}")
 
         elif allocation_strategy == "AVERAGE":
             # 在庫を取得し、単価の昇順でソート
@@ -83,7 +83,7 @@ def allocate_inventory(db: Session, allocation_strategy: str):
                 remaining_quantity -= quantity_to_allocate
                 inventory.quantity -= quantity_to_allocate
 
-                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.inventory_id} at average price {average_price}")
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory_id} at average price {average_price}")
 
         else:
             logger.error(f"Invalid allocation strategy: {allocation_strategy}")
