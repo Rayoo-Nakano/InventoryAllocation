@@ -4,9 +4,17 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-# テスト用の環境変数ファイルを読み込む
-load_dotenv(".env.test")
+# .env.testファイルのパスを設定する
+env_file_path = ".env.test"
 
+# .env.testファイルが存在するかチェックする
+if not os.path.exists(env_file_path):
+    raise FileNotFoundError(f"Environment file {env_file_path} not found.")
+
+# .env.testファイルを読み込む
+load_dotenv(env_file_path)
+
+# 環境変数の値を出力する
 print("Environment variables loaded from .env.test:")
 print(f"DB_HOST: {os.environ.get('DB_HOST')}")
 print(f"DB_PORT: {os.environ.get('DB_PORT')}")
@@ -15,7 +23,7 @@ print(f"DB_USER: {os.environ.get('DB_USER')}")
 print(f"DB_PASSWORD: {os.environ.get('DB_PASSWORD')}")
 
 DB_HOST = os.environ.get("DB_HOST")
-DB_PORT = int(os.environ.get("DB_PORT")) if os.environ.get("DB_PORT") else None
+DB_PORT = os.environ.get("DB_PORT")
 DB_NAME = os.environ.get("DB_NAME")
 DB_USER = os.environ.get("DB_USER")
 DB_PASSWORD = os.environ.get("DB_PASSWORD")
