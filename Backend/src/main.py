@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer
-from jose import jwt, JWTError
+from jose import jwt
+from jose.exceptions import JWTError
 from sqlalchemy.orm import Session
 from schemas import TokenPayload, OrderRequest, InventoryRequest, AllocationRequest
 from models import Order, Inventory, AllocationResult

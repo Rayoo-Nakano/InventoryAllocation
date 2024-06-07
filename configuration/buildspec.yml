@@ -4,41 +4,55 @@ phases:
   install:
     runtime-versions:
       python: 3.8
+    commands:
+    # Python開発関係ライブラリ取得　← CodeArtifactへ変更検討
+      - pip install -r ./configuration/requirements.txt --quiet
 
   build:
     commands:
-      - ls
+    # フォルダーの確認
       - ls Backend
+      - ls Backend/src
       - ls configuration
+    # Lambda様パッケージ化
+      - zip -r InventoryTest1.zip ./Backend/src
+# 単体試験の組込予定
+      - echo "Starting Unit tests..."
+      - pytest Backend/tests/UT_src
+      - echo "Unit tests Completed..."
+reports:
+  pytest_reports:
+    files:
+      - "pytest-report.xml"
+    file-format: "JUNITXML"
 
-      - pip install -r ./configuration/requirements.txt
-#      - python -m pytest
   post_build:
     commands:
-      - zip -r InventoryTest1.zip ./Backend/src
-      # Lambda関数名
+    # Lambda関数名
       - FUNCTION_NAME="InventoryAllocationTest1"
       - aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://InventoryTest1.zip
-      # Backup
+    # Gitから読込んだファイルの内設定系をBackup
       - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
       - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
 
-      - echo "Starting appspec.yml create process..."
     # エイリアス、現在のバージョン、ターゲットバージョンを取得
+      - echo "Starting appspec.yml create process..."
       - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
       - CURRENT_VERSION=$(aws lambda get-alias --function-name $FUNCTION_NAME --name $ALIAS --query 'FunctionVersion' --output text)
       - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
 
     # AppSpecファイルのプレースホルダーを実際の値に置き換える
-#      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
+      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
       - sed -i "s/{{Alias}}/$ALIAS/g"                     configuration/appspec.yml
       - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
       - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
       - cat configuration/appspec.yml
+      - cp  configuration/appspec.yml .
+      - ls
       - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
-
 
 artifacts:
   files:
     - InventoryTest1.zip
     - appspec.yml
+  name: BuildOutput

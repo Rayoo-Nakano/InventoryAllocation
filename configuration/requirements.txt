@@ -1,5 +1,6 @@
+pytest
 fastapi
 sqlalchemy
-pydantic
-jose
-pytest
+python-jose
+# pydantic
+psycopg2-binary     # PythonでPostgreSQLデータベースに接続するためのライブラリ
