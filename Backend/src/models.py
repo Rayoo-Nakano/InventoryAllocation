@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -9,6 +9,7 @@ class Order(Base):
     order_id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # 注文IDをプライマリキーに設定
     item_code = Column(String, index=True)  # 商品コード
     quantity = Column(Integer)  # 数量
+    allocated = Column(Boolean, default=False)  # 割当済みかどうかを示すフラグ
 
     allocation_results = relationship("AllocationResult", back_populates="order")  # AllocationResultとのリレーションシップを定義
 
@@ -26,7 +27,7 @@ class AllocationResult(Base):
     __tablename__ = "allocation_results"  # テーブル名を "allocation_results" に設定
 
     id = Column(Integer, primary_key=True, index=True)  # 割当結果IDをプライマリキーに設定
-    order_id = Column(String, ForeignKey("orders.order_id"))  # 注文IDを外部キーに設定
+    order_id = Column(Integer, ForeignKey("orders.order_id"))  # 注文IDを外部キーに設定
     item_code = Column(String, index=True)  # 商品コード
     allocated_quantity = Column(Integer)  # 割当数量
     allocated_price = Column(Float)  # 割当価格

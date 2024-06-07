@@ -143,6 +143,8 @@ def allocate_inventory(db: Session, strategy: str):
             raise ValueError(f"Unknown allocation strategy: {strategy}")
 
         logger.info(f"Created allocation result for order {order.order_id} with allocated quantity {order.quantity} and price {allocation_result.allocated_price}")
+        
+        # 割り当てが完了したらorder.allocated = Trueに設定
         order.allocated = True
 
     db.commit()
