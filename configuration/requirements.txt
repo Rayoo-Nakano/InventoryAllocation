@@ -1,5 +1,5 @@
-fastapi
-sqlalchemy
-pydantic
-jose
+# fastapi
+# sqlalchemy
+# pydantic
+# jose
 pytest
