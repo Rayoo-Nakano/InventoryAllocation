@@ -16,7 +16,14 @@ phases:
     # Lambda様パッケージ化
       - zip -r InventoryTest1.zip ./Backend/src
 # 単体試験の組込予定
-#      - python -m pytest
+      - echo "Starting tests..."
+      - pytest test/UT_src
+      - echo "Starting tests..."
+reports:
+  pytest_reports:
+    files:
+      - "pytest-report.xml"
+    file-format: "JUNITXML"
 
   post_build:
     commands:
