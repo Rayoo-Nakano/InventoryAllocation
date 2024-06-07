@@ -1,3 +1,9 @@
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
+
 import pytest
 from sqlalchemy.orm import Session
 from models import Order, Inventory, AllocationResult
