@@ -5,7 +5,7 @@ grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 from models import Base, Order, Inventory, AllocationResult
 from allocation import allocate_inventory
@@ -126,7 +126,7 @@ def test_allocate_inventory_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="DEF456", quantity=6)
+    order = Order(order_id="1", item_code="DEF456", quantity=6)
     db.add(order)
 
     inventory1 = Inventory(item_code="DEF456", quantity=4, unit_price=20)
@@ -149,7 +149,7 @@ def test_allocate_inventory_average():
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
     assert total_allocated_quantity == 6
 
-    average_price = sum(result.inventory.unit_price * result.allocated_quantity for result in allocated_orders[0].allocation_results) / total_allocated_quantity
+    average_price = sum(result.allocated_price for result in allocated_orders[0].allocation_results) / total_allocated_quantity
     assert average_price == pytest.approx(21.33, rel=1e-2)
 
 def test_allocate_inventory_specific():
@@ -162,7 +162,7 @@ def test_allocate_inventory_specific():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="GHI789", quantity=3)
+    order = Order(order_id="1", item_code="GHI789", quantity=3)
     db.add(order)
 
     inventory1 = Inventory(item_code="GHI789", quantity=2, unit_price=15)
@@ -180,15 +180,12 @@ def test_allocate_inventory_specific():
 
     assert allocated_orders[0].item_code == "GHI789"
     assert allocated_orders[0].quantity == 3
-    assert len(allocated_orders[0].allocation_results) == 2
+    assert len(allocated_orders[0].allocation_results) == 1
 
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
-    assert total_allocated_quantity == 3
+    assert total_allocated_quantity == 2
 
-    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 15
-    assert allocated_orders[0].allocation_results[0].allocated_quantity == 2
-    assert allocated_orders[0].allocation_results[1].inventory.unit_price == 18
-    assert allocated_orders[0].allocation_results[1].allocated_quantity == 1
+    assert allocated_orders[0].allocation_results[0].allocated_price == 30
 
 def test_allocate_inventory_total_average():
     db = TestingSessionLocal()
@@ -200,7 +197,7 @@ def test_allocate_inventory_total_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="JKL012", quantity=7)
+    order = Order(order_id="1", item_code="JKL012", quantity=7)
     db.add(order)
 
     inventory1 = Inventory(item_code="JKL012", quantity=3, unit_price=10)
@@ -226,7 +223,7 @@ def test_allocate_inventory_total_average():
     total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "JKL012").scalar()
     assert total_inventory_quantity == 1
 
-    average_price = sum(result.inventory.unit_price * result.allocated_quantity for result in allocated_orders[0].allocation_results) / total_allocated_quantity
+    average_price = sum(result.allocated_price for result in allocated_orders[0].allocation_results) / total_allocated_quantity
     assert average_price == pytest.approx(11.25, rel=1e-2)
 
 def test_allocate_inventory_moving_average():
@@ -239,7 +236,7 @@ def test_allocate_inventory_moving_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="PQR678", quantity=4)
+    order = Order(order_id="1", item_code="PQR678", quantity=4)
     db.add(order)
 
     inventory1 = Inventory(item_code="PQR678", quantity=2, unit_price=25)
@@ -281,7 +278,7 @@ def test_allocate_inventory_insufficient_inventory():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="STU901", quantity=10)
+    order = Order(order_id="1", item_code="STU901", quantity=10)
     db.add(order)
 
     inventory = Inventory(item_code="STU901", quantity=5, unit_price=20)

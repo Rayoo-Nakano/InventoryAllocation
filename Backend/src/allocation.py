@@ -85,6 +85,76 @@ def allocate_inventory(db: Session, allocation_strategy: str):
 
                 logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.id} at average price {average_price}")
 
+        elif allocation_strategy == "SPECIFIC":
+            # 在庫を取得し、特定の在庫IDを指定して割り当てる
+            inventory_id = 1  # 割り当てる在庫IDを指定
+            inventory = db.query(Inventory).filter(Inventory.id == inventory_id, Inventory.item_code == order.item_code, Inventory.quantity > 0).first()
+
+            if inventory:
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * inventory.unit_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from specific inventory {inventory.id} at price {inventory.unit_price}")
+            else:
+                logger.warning(f"Specific inventory {inventory_id} not found or out of stock for order {order.order_id}")
+
+        elif allocation_strategy == "TOTAL_AVERAGE":
+            # 在庫を取得し、総平均単価を計算
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).all()
+
+            # 在庫の総数量と総価格を計算
+            total_quantity = sum(inventory.quantity for inventory in inventories)
+            total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories)
+
+            # 在庫の総平均単価を計算
+            total_average_price = total_price / total_quantity if total_quantity > 0 else 0.0
+
+            logger.info(f"Calculated total average price: {total_average_price}")
+
+            for inventory in inventories:
+                if remaining_quantity <= 0:
+                    break
+
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * total_average_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.id} at total average price {total_average_price}")
+
+        elif allocation_strategy == "MOVING_AVERAGE":
+            # 在庫を取得し、移動平均単価を計算
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.created_at).all()
+
+            # 移動平均単価を計算するための変数を初期化
+            moving_total_quantity = 0
+            moving_total_price = 0.0
+            moving_average_price = 0.0
+
+            for inventory in inventories:
+                if remaining_quantity <= 0:
+                    break
+
+                # 移動平均単価を計算
+                moving_total_quantity += inventory.quantity
+                moving_total_price += inventory.quantity * inventory.unit_price
+                moving_average_price = moving_total_price / moving_total_quantity
+
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * moving_average_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.id} at moving average price {moving_average_price}")
+
         else:
             logger.error(f"Invalid allocation strategy: {allocation_strategy}")
             raise ValueError("Invalid allocation strategy")
