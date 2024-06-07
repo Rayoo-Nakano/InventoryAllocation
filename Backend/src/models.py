@@ -6,7 +6,7 @@ from datetime import datetime
 class Order(Base):
     __tablename__ = "orders"  # テーブル名を "orders" に設定
 
-    order_id = Column(String, primary_key=True, index=True)  # 注文IDをプライマリキーに設定
+    order_id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # 注文IDをプライマリキーに設定
     item_code = Column(String, index=True)  # 商品コード
     quantity = Column(Integer)  # 数量
 
