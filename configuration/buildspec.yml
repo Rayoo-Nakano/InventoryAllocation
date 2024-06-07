@@ -16,9 +16,9 @@ phases:
     # Lambda様パッケージ化
       - zip -r InventoryTest1.zip ./Backend/src
 # 単体試験の組込予定
-      - echo "Starting tests..."
-      - pytest test/UT_src
-      - echo "Starting tests..."
+      - echo "Starting Unit tests..."
+      - pytest Backend/test/UT_src
+      - echo "Unit tests Completed..."
 reports:
   pytest_reports:
     files:
