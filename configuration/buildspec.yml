@@ -39,7 +39,7 @@ phases:
       - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
       - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
       - cat configuration/appspec.yml
-      - cp  configuration/appspec.yml ../
+      - cp  configuration/appspec.yml .
       - ls
       - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
 
