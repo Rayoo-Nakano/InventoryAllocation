@@ -40,13 +40,13 @@ def test_allocate_inventory_fifo():
 
     assert allocated_orders[0].item_code == "ABC123"
     assert allocated_orders[0].quantity == 5
-    assert allocated_orders[0].allocation_result.allocated_quantity == 5
-    assert allocated_orders[0].allocation_result.allocated_price == 11.0
+    assert allocated_orders[0].allocation_resultss[0].allocated_quantity == 5
+    assert allocated_orders[0].allocation_resultss[0].allocated_price == 11.0
 
     assert allocated_orders[1].item_code == "ABC123"
     assert allocated_orders[1].quantity == 3
-    assert allocated_orders[1].allocation_result.allocated_quantity == 3
-    assert allocated_orders[1].allocation_result.allocated_price == 12.0
+    assert allocated_orders[1].allocation_resultss[0].allocated_quantity == 3
+    assert allocated_orders[1].allocation_resultss[0].allocated_price == 12.0
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -59,8 +59,15 @@ def test_allocate_inventory_fifo():
 
     db.close()
 
+
 def test_allocate_inventory_lifo():
     db = TestingSessionLocal()
+    
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
     
     # テストデータの作成
     order1 = Order(order_id=1, item_code="XYZ789", quantity=3)
@@ -82,13 +89,13 @@ def test_allocate_inventory_lifo():
 
     assert allocated_orders[0].item_code == "XYZ789"
     assert allocated_orders[0].quantity == 3
-    assert allocated_orders[0].allocation_result.allocated_quantity == 3
-    assert allocated_orders[0].allocation_result.allocated_price == 18.0
+    assert allocated_orders[0].allocation_results[0].allocated_quantity == 3
+    assert allocated_orders[0].allocation_results[0].allocated_price == 18.0
 
     assert allocated_orders[1].item_code == "XYZ789"
     assert allocated_orders[1].quantity == 5
-    assert allocated_orders[1].allocation_result.allocated_quantity == 5
-    assert allocated_orders[1].allocation_result.allocated_price == 16.5
+    assert allocated_orders[1].allocation_results[0].allocated_quantity == 5
+    assert allocated_orders[1].allocation_results[0].allocated_price == 16.5
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -100,6 +107,7 @@ def test_allocate_inventory_lifo():
     assert updated_inventories[1].quantity == 1
     
     db.close()
+
 
 def test_allocate_inventory_average():
     db = TestingSessionLocal()
@@ -123,8 +131,8 @@ def test_allocate_inventory_average():
 
     assert allocated_orders[0].item_code == "DEF456"
     assert allocated_orders[0].quantity == 6
-    assert allocated_orders[0].allocation_result.allocated_quantity == 6
-    assert allocated_orders[0].allocation_result.allocated_price == 21.0
+    assert allocated_orders[0].allocation_results.allocated_quantity == 6
+    assert allocated_orders[0].allocation_results.allocated_price == 21.0
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -159,8 +167,8 @@ def test_allocate_inventory_specific():
 
     assert allocated_orders[0].item_code == "GHI789"
     assert allocated_orders[0].quantity == 3
-    assert allocated_orders[0].allocation_result.allocated_quantity == 3
-    assert allocated_orders[0].allocation_result.allocated_price == 18.0
+    assert allocated_orders[0].allocation_results.allocated_quantity == 3
+    assert allocated_orders[0].allocation_results.allocated_price == 18.0
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -195,8 +203,8 @@ def test_allocate_inventory_total_average():
 
     assert allocated_orders[0].item_code == "JKL012"
     assert allocated_orders[0].quantity == 7
-    assert allocated_orders[0].allocation_result.allocated_quantity == 7
-    assert allocated_orders[0].allocation_result.allocated_price == 11.0
+    assert allocated_orders[0].allocation_results.allocated_quantity == 7
+    assert allocated_orders[0].allocation_results.allocated_price == 11.0
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -231,8 +239,8 @@ def test_allocate_inventory_moving_average():
 
     assert allocated_orders[0].item_code == "PQR678"
     assert allocated_orders[0].quantity == 4
-    assert allocated_orders[0].allocation_result.allocated_quantity == 4
-    assert allocated_orders[0].allocation_result.allocated_price == 26.5
+    assert allocated_orders[0].allocation_results.allocated_quantity == 4
+    assert allocated_orders[0].allocation_results.allocated_price == 26.5
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -266,8 +274,8 @@ def test_allocate_inventory_insufficient_inventory():
 
     assert allocated_orders[0].item_code == "STU901"
     assert allocated_orders[0].quantity == 10
-    assert allocated_orders[0].allocation_result.allocated_quantity == 5
-    assert allocated_orders[0].allocation_result.allocated_price == 20.0
+    assert allocated_orders[0].allocation_results.allocated_quantity == 5
+    assert allocated_orders[0].allocation_results.allocated_price == 20.0
 
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 1
