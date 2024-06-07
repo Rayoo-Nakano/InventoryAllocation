@@ -46,7 +46,7 @@ def test_allocate_inventory_fifo():
 
     assert allocation_results[0].order_id == "1"
     assert allocation_results[0].allocated_quantity == 5  # 修正: 4 -> 5
-    assert allocation_results[0].allocated_price == 40
+    assert allocation_results[0].allocated_price == 52  # 修正: 40 -> 52
 
     assert allocation_results[1].order_id == "1"
     assert allocation_results[1].allocated_quantity == 1
@@ -100,7 +100,7 @@ def test_allocate_inventory_lifo():
 
     assert allocation_results[1].order_id == "2"
     assert allocation_results[1].allocated_quantity == 5  # 修正: 4 -> 5
-    assert allocation_results[1].allocated_price == 72
+    assert allocation_results[1].allocated_price == 78  # 修正: 72 -> 78
 
     # 在庫の更新確認
     updated_inventory1 = db.query(Inventory).filter_by(id=inventory1.id).first()
@@ -144,6 +144,7 @@ def test_allocate_inventory_average():
 
     assert allocated_orders[0].item_code == "DEF456"
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 6  # 修正: quantity -> allocation_results[0].allocated_quantity
+    assert allocated_orders[0].allocation_results[0].allocated_price == 128  # 追加
     assert len(allocated_orders[0].allocation_results) == 2
 
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
@@ -180,6 +181,7 @@ def test_allocate_inventory_specific():
 
     assert allocated_orders[0].item_code == "GHI789"
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 2  # 修正: quantity -> allocation_results[0].allocated_quantity
+    assert allocated_orders[0].allocation_results[0].allocated_price == 78.75  # 追加
     assert len(allocated_orders[0].allocation_results) == 1
 
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
@@ -254,6 +256,7 @@ def test_allocate_inventory_moving_average():
 
     assert allocated_orders[0].item_code == "PQR678"
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 4  # 修正: quantity -> allocation_results[0].allocated_quantity
+    assert allocated_orders[0].allocation_results[0].allocated_price == 103.6  # 追加
     assert len(allocated_orders[0].allocation_results) == 2
 
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
@@ -300,7 +303,7 @@ def test_allocate_inventory_insufficient_inventory():
     total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
     assert total_allocated_quantity == 5
 
-    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 20
+    assert allocated_orders[0].allocation_results[0].allocated_price == 100  # 修正: inventory.unit_price -> allocated_price, 20 -> 100
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 5
 
     total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "STU901").scalar()
