@@ -4,18 +4,20 @@ phases:
   install:
     runtime-versions:
       python: 3.8
+    commands:
+    # Python開発関係ライブラリ取得　← CodeArtifactへ変更検討
+      - pip install -r ./configuration/requirements.txt
 
   build:
     commands:
     # フォルダーの確認
       - ls Backend
       - ls configuration
-    # LambdaソースコードのZip化
+    # Lambda様パッケージ化
       - zip -r InventoryTest1.zip ./Backend/src
-    # Python開発関係ライブラリ取得　← CodeArtifactへ変更検討
-      - pip install -r ./configuration/requirements.txt
 # 単体試験の組込予定
 #      - python -m pytest
+
   post_build:
     commands:
     # Lambda関数名
@@ -37,6 +39,7 @@ phases:
       - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
       - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
       - cat configuration/appspec.yml
+      - cp  configuration/appspec.yml ..
       - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
 
 artifacts:
