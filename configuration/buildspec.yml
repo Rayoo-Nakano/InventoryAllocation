@@ -18,7 +18,7 @@ phases:
       - zip -r InventoryTest1.zip ./Backend/src
 # 単体試験の組込予定
       - echo "Starting Unit tests..."
-      - pytest -v Backend/tests/UT_src
+      - pytest Backend/tests/UT_src
       - echo "Unit tests Completed..."
 reports:
   pytest_reports:
