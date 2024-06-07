@@ -1,8 +1,14 @@
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from ..main import app, get_db
+from main import app, get_db
 from models import Base
 from schemas import OrderRequest, InventoryRequest, AllocationRequest
 from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
