@@ -21,8 +21,8 @@ def test_allocate_inventory_fifo():
     db = TestingSessionLocal()
 
     # テストデータの作成
-    order1 = Order(item_code="ABC123", quantity=5)
-    order2 = Order(item_code="ABC123", quantity=3)
+    order1 = Order(order_id=1, item_code="ABC123", quantity=5)
+    order2 = Order(order_id=2, item_code="ABC123", quantity=3)
     db.add_all([order1, order2])
 
     inventory1 = Inventory(item_code="ABC123", quantity=4, unit_price=10)
@@ -64,8 +64,8 @@ def test_allocate_inventory_lifo():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order1 = Order(item_code="XYZ789", quantity=3)
-    order2 = Order(item_code="XYZ789", quantity=5)
+    order1 = Order(order_id=1, item_code="XYZ789", quantity=3)
+    order2 = Order(order_id=2, item_code="XYZ789", quantity=5)
     db.add_all([order1, order2])
     
     inventory1 = Inventory(item_code="XYZ789", quantity=6, unit_price=15)
@@ -106,7 +106,7 @@ def test_allocate_inventory_average():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order = Order(item_code="DEF456", quantity=6)
+    order = Order(order_id=1, item_code="DEF456", quantity=6)
     db.add(order)
     
     inventory1 = Inventory(item_code="DEF456", quantity=4, unit_price=20)
@@ -142,7 +142,7 @@ def test_allocate_inventory_specific():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order = Order(item_code="GHI789", quantity=3)
+    order = Order(order_id=1, item_code="GHI789", quantity=3)
     db.add(order)
     
     inventory1 = Inventory(item_code="GHI789", quantity=2, unit_price=15)
@@ -178,7 +178,7 @@ def test_allocate_inventory_total_average():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order = Order(item_code="JKL012", quantity=7)
+    order = Order(order_id=1, item_code="JKL012", quantity=7)
     db.add(order)
     
     inventory1 = Inventory(item_code="JKL012", quantity=3, unit_price=10)
@@ -214,7 +214,7 @@ def test_allocate_inventory_moving_average():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order = Order(item_code="PQR678", quantity=4)
+    order = Order(order_id=1, item_code="PQR678", quantity=4)
     db.add(order)
     
     inventory1 = Inventory(item_code="PQR678", quantity=2, unit_price=25)
@@ -250,7 +250,7 @@ def test_allocate_inventory_insufficient_inventory():
     db = TestingSessionLocal()
     
     # テストデータの作成
-    order = Order(item_code="STU901", quantity=10)
+    order = Order(order_id=1, item_code="STU901", quantity=10)
     db.add(order)
     
     inventory = Inventory(item_code="STU901", quantity=5, unit_price=20)
@@ -270,7 +270,6 @@ def test_allocate_inventory_insufficient_inventory():
     assert allocated_orders[0].allocated_quantity == 5
     assert allocated_orders[0].allocated_price == 20.0
 
-    updated_inventories = db.query
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 1
 
