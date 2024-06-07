@@ -6,7 +6,7 @@ phases:
       python: 3.8
     commands:
     # Python開発関係ライブラリ取得　← CodeArtifactへ変更検討
-      - pip install -r ./configuration/requirements.txt
+      - pip install -r ./configuration/requirements.txt --quiet
 
   build:
     commands:
