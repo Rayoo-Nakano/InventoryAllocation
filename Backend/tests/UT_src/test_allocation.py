@@ -19,44 +19,50 @@ Base.metadata.create_all(bind=engine)
 
 def test_allocate_inventory_fifo():
     db = TestingSessionLocal()
-
+    
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+    
     # テストデータの作成
     order1 = Order(order_id=1, item_code="ABC123", quantity=5)
     order2 = Order(order_id=2, item_code="ABC123", quantity=3)
     db.add_all([order1, order2])
-
+    
     inventory1 = Inventory(item_code="ABC123", quantity=4, unit_price=10)
     inventory2 = Inventory(item_code="ABC123", quantity=6, unit_price=12)
     db.add_all([inventory1, inventory2])
-
+    
     db.commit()
-
+    
     # FIFOでの在庫割当を実行
     allocate_inventory(db, "FIFO")
-
+    
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 2
-
+    
     assert allocated_orders[0].item_code == "ABC123"
     assert allocated_orders[0].quantity == 5
-    assert allocated_orders[0].allocation_resultss[0].allocated_quantity == 5
-    assert allocated_orders[0].allocation_resultss[0].allocated_price == 11.0
-
+    assert allocated_orders[0].allocation_results[0].allocated_quantity == 5
+    assert allocated_orders[0].allocation_results[0].allocated_price == 11.0
+    
     assert allocated_orders[1].item_code == "ABC123"
     assert allocated_orders[1].quantity == 3
-    assert allocated_orders[1].allocation_resultss[0].allocated_quantity == 3
-    assert allocated_orders[1].allocation_resultss[0].allocated_price == 12.0
-
+    assert allocated_orders[1].allocation_results[0].allocated_quantity == 3
+    assert allocated_orders[1].allocation_results[0].allocated_price == 12.0
+    
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
-
+    
     assert updated_inventories[0].item_code == "ABC123"
     assert updated_inventories[0].quantity == 0
-
+    
     assert updated_inventories[1].item_code == "ABC123"
     assert updated_inventories[1].quantity == 2
-
+    
     db.close()
 
 
@@ -112,6 +118,12 @@ def test_allocate_inventory_lifo():
 def test_allocate_inventory_average():
     db = TestingSessionLocal()
     
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+        
     # テストデータの作成
     order = Order(order_id=1, item_code="DEF456", quantity=6)
     db.add(order)
@@ -148,6 +160,12 @@ def test_allocate_inventory_average():
 def test_allocate_inventory_specific():
     db = TestingSessionLocal()
     
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+        
     # テストデータの作成
     order = Order(order_id=1, item_code="GHI789", quantity=3)
     db.add(order)
@@ -184,6 +202,12 @@ def test_allocate_inventory_specific():
 def test_allocate_inventory_total_average():
     db = TestingSessionLocal()
     
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+        
     # テストデータの作成
     order = Order(order_id=1, item_code="JKL012", quantity=7)
     db.add(order)
@@ -220,6 +244,12 @@ def test_allocate_inventory_total_average():
 def test_allocate_inventory_moving_average():
     db = TestingSessionLocal()
     
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+        
     # テストデータの作成
     order = Order(order_id=1, item_code="PQR678", quantity=4)
     db.add(order)
@@ -256,6 +286,12 @@ def test_allocate_inventory_moving_average():
 def test_allocate_inventory_insufficient_inventory():
     db = TestingSessionLocal()
     
+    # テスト前にデータベースをクリーンアップ
+    db.query(Order).delete()
+    db.query(Inventory).delete()
+    db.query(AllocationResult).delete()
+    db.commit()
+        
     # テストデータの作成
     order = Order(order_id=1, item_code="STU901", quantity=10)
     db.add(order)
