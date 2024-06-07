@@ -4,7 +4,7 @@ from typing import List
 
 class TokenPayload(BaseModel):
     sub: str
-    cognito:username: str
+    cognito_username: str
     email: str
     email_verified: bool
     given_name: str
