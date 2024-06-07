@@ -5,8 +5,8 @@ grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.orm import sessionmaker, Session
 from dotenv import load_dotenv
 from database import Base, get_db
 
@@ -30,7 +30,7 @@ def override_get_db():
 def test_get_db():
     db = next(override_get_db())
     assert db is not None
-    assert isinstance(db, sessionmaker)
+    assert isinstance(db, Session)
 
 def test_database_connection():
     db = next(override_get_db())
@@ -39,7 +39,9 @@ def test_database_connection():
 
 def test_create_tables():
     db = next(override_get_db())
-    tables = db.bind.table_names()
+    inspector = inspect(db.bind)
+    tables = inspector.get_table_names()
+    
     assert "orders" in tables
     assert "inventories" in tables
     assert "allocation_results" in tables

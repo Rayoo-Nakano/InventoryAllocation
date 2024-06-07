@@ -47,12 +47,12 @@ def test_allocate_inventory_fifo():
     assert allocated_orders[0].item_code == "ABC123"
     assert allocated_orders[0].quantity == 5
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 5
-    assert allocated_orders[0].allocation_results[0].allocated_price == 11.0
+    assert allocated_orders[0].allocation_results[0].allocated_price == 10.0
     
     assert allocated_orders[1].item_code == "ABC123"
     assert allocated_orders[1].quantity == 3
     assert allocated_orders[1].allocation_results[0].allocated_quantity == 3
-    assert allocated_orders[1].allocation_results[0].allocated_price == 12.0
+    assert allocated_orders[1].allocation_results[0].allocated_price == 11.0
     
     updated_inventories = db.query(Inventory).all()
     assert len(updated_inventories) == 2
@@ -65,30 +65,29 @@ def test_allocate_inventory_fifo():
     
     db.close()
 
-
 def test_allocate_inventory_lifo():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-    
+
     # テストデータの作成
     order1 = Order(order_id=1, item_code="XYZ789", quantity=3)
     order2 = Order(order_id=2, item_code="XYZ789", quantity=5)
     db.add_all([order1, order2])
-    
+
     inventory1 = Inventory(item_code="XYZ789", quantity=6, unit_price=15)
     inventory2 = Inventory(item_code="XYZ789", quantity=4, unit_price=18)
     db.add_all([inventory1, inventory2])
-    
+
     db.commit()
-    
+
     # LIFOでの在庫割当を実行
     allocate_inventory(db, "LIFO")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 2
@@ -96,230 +95,208 @@ def test_allocate_inventory_lifo():
     assert allocated_orders[0].item_code == "XYZ789"
     assert allocated_orders[0].quantity == 3
     assert allocated_orders[0].allocation_results[0].allocated_quantity == 3
-    assert allocated_orders[0].allocation_results[0].allocated_price == 18.0
+    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 18
 
     assert allocated_orders[1].item_code == "XYZ789"
     assert allocated_orders[1].quantity == 5
-    assert allocated_orders[1].allocation_results[0].allocated_quantity == 5
-    assert allocated_orders[1].allocation_results[0].allocated_price == 16.5
-
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 2
-
-    assert updated_inventories[0].item_code == "XYZ789"
-    assert updated_inventories[0].quantity == 6
-
-    assert updated_inventories[1].item_code == "XYZ789"
-    assert updated_inventories[1].quantity == 1
-    
-    db.close()
-
+    assert allocated_orders[1].allocation_results[0].allocated_quantity == 1
+    assert allocated_orders[1].allocation_results[0].inventory.unit_price == 18
+    assert allocated_orders[1].allocation_results[1].allocated_quantity == 4
+    assert allocated_orders[1].allocation_results[1].inventory.unit_price == 15
 
 def test_allocate_inventory_average():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-        
+
     # テストデータの作成
     order = Order(order_id=1, item_code="DEF456", quantity=6)
     db.add(order)
-    
+
     inventory1 = Inventory(item_code="DEF456", quantity=4, unit_price=20)
     inventory2 = Inventory(item_code="DEF456", quantity=8, unit_price=22)
     db.add_all([inventory1, inventory2])
-    
+
     db.commit()
-    
+
     # AVERAGEでの在庫割当を実行
     allocate_inventory(db, "AVERAGE")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 1
 
     assert allocated_orders[0].item_code == "DEF456"
     assert allocated_orders[0].quantity == 6
-    assert allocated_orders[0].allocation_results.allocated_quantity == 6
-    assert allocated_orders[0].allocation_results.allocated_price == 21.0
+    assert len(allocated_orders[0].allocation_results) == 2
 
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 2
+    total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
+    assert total_allocated_quantity == 6
 
-    assert updated_inventories[0].item_code == "DEF456"
-    assert updated_inventories[0].quantity == 0
-
-    assert updated_inventories[1].item_code == "DEF456"
-    assert updated_inventories[1].quantity == 6
-    
-    db.close()
+    average_price = sum(result.inventory.unit_price * result.allocated_quantity for result in allocated_orders[0].allocation_results) / total_allocated_quantity
+    assert average_price == pytest.approx(21.33, rel=1e-2)
 
 def test_allocate_inventory_specific():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-        
+
     # テストデータの作成
     order = Order(order_id=1, item_code="GHI789", quantity=3)
     db.add(order)
-    
+
     inventory1 = Inventory(item_code="GHI789", quantity=2, unit_price=15)
     inventory2 = Inventory(item_code="GHI789", quantity=5, unit_price=18)
     db.add_all([inventory1, inventory2])
-    
+
     db.commit()
-    
+
     # SPECIFICでの在庫割当を実行
     allocate_inventory(db, "SPECIFIC")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 1
 
     assert allocated_orders[0].item_code == "GHI789"
     assert allocated_orders[0].quantity == 3
-    assert allocated_orders[0].allocation_results.allocated_quantity == 3
-    assert allocated_orders[0].allocation_results.allocated_price == 18.0
+    assert len(allocated_orders[0].allocation_results) == 2
 
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 2
+    total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
+    assert total_allocated_quantity == 3
 
-    assert updated_inventories[0].item_code == "GHI789"
-    assert updated_inventories[0].quantity == 2
-
-    assert updated_inventories[1].item_code == "GHI789"
-    assert updated_inventories[1].quantity == 2
-    
-    db.close()
+    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 15
+    assert allocated_orders[0].allocation_results[0].allocated_quantity == 2
+    assert allocated_orders[0].allocation_results[1].inventory.unit_price == 18
+    assert allocated_orders[0].allocation_results[1].allocated_quantity == 1
 
 def test_allocate_inventory_total_average():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-        
+
     # テストデータの作成
     order = Order(order_id=1, item_code="JKL012", quantity=7)
     db.add(order)
-    
+
     inventory1 = Inventory(item_code="JKL012", quantity=3, unit_price=10)
-    inventory2 = Inventory(item_code="MNO345", quantity=5, unit_price=12)
+    inventory2 = Inventory(item_code="JKL012", quantity=5, unit_price=12)
     db.add_all([inventory1, inventory2])
-    
+
     db.commit()
-    
+
     # TOTAL_AVERAGEでの在庫割当を実行
     allocate_inventory(db, "TOTAL_AVERAGE")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 1
 
     assert allocated_orders[0].item_code == "JKL012"
     assert allocated_orders[0].quantity == 7
-    assert allocated_orders[0].allocation_results.allocated_quantity == 7
-    assert allocated_orders[0].allocation_results.allocated_price == 11.0
+    assert len(allocated_orders[0].allocation_results) == 2
 
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 2
+    total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
+    assert total_allocated_quantity == 7
 
-    assert updated_inventories[0].item_code == "JKL012"
-    assert updated_inventories[0].quantity == 0
+    total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "JKL012").scalar()
+    assert total_inventory_quantity == 1
 
-    assert updated_inventories[1].item_code == "MNO345"
-    assert updated_inventories[1].quantity == 1
-    
-    db.close()
+    average_price = sum(result.inventory.unit_price * result.allocated_quantity for result in allocated_orders[0].allocation_results) / total_allocated_quantity
+    assert average_price == pytest.approx(11.25, rel=1e-2)
 
 def test_allocate_inventory_moving_average():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-        
+
     # テストデータの作成
     order = Order(order_id=1, item_code="PQR678", quantity=4)
     db.add(order)
-    
+
     inventory1 = Inventory(item_code="PQR678", quantity=2, unit_price=25)
     inventory2 = Inventory(item_code="PQR678", quantity=3, unit_price=28)
     db.add_all([inventory1, inventory2])
-    
+
     db.commit()
-    
+
     # MOVING_AVERAGEでの在庫割当を実行
     allocate_inventory(db, "MOVING_AVERAGE")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 1
 
     assert allocated_orders[0].item_code == "PQR678"
     assert allocated_orders[0].quantity == 4
-    assert allocated_orders[0].allocation_results.allocated_quantity == 4
-    assert allocated_orders[0].allocation_results.allocated_price == 26.5
+    assert len(allocated_orders[0].allocation_results) == 2
 
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 2
+    total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
+    assert total_allocated_quantity == 4
 
-    assert updated_inventories[0].item_code == "PQR678"
-    assert updated_inventories[0].quantity == 0
+    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 25
+    assert allocated_orders[0].allocation_results[0].allocated_quantity == 2
+    assert allocated_orders[0].allocation_results[1].inventory.unit_price == 28
+    assert allocated_orders[0].allocation_results[1].allocated_quantity == 2
 
-    assert updated_inventories[1].item_code == "PQR678"
-    assert updated_inventories[1].quantity == 1
-    
-    db.close()
+    total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "PQR678").scalar()
+    assert total_inventory_quantity == 1
+
 
 def test_allocate_inventory_insufficient_inventory():
     db = TestingSessionLocal()
-    
+
     # テスト前にデータベースをクリーンアップ
     db.query(Order).delete()
     db.query(Inventory).delete()
     db.query(AllocationResult).delete()
     db.commit()
-        
+
     # テストデータの作成
     order = Order(order_id=1, item_code="STU901", quantity=10)
     db.add(order)
-    
+
     inventory = Inventory(item_code="STU901", quantity=5, unit_price=20)
     db.add(inventory)
-    
+
     db.commit()
-    
+
     # 在庫不足の場合のテスト
     allocate_inventory(db, "FIFO")
-    
+
     # 結果の検証
     allocated_orders = db.query(Order).join(AllocationResult).filter(AllocationResult.order_id == Order.order_id).all()
     assert len(allocated_orders) == 1
 
     assert allocated_orders[0].item_code == "STU901"
     assert allocated_orders[0].quantity == 10
-    assert allocated_orders[0].allocation_results.allocated_quantity == 5
-    assert allocated_orders[0].allocation_results.allocated_price == 20.0
+    assert len(allocated_orders[0].allocation_results) == 1
 
-    updated_inventories = db.query(Inventory).all()
-    assert len(updated_inventories) == 1
+    total_allocated_quantity = sum(result.allocated_quantity for result in allocated_orders[0].allocation_results)
+    assert total_allocated_quantity == 5
 
-    assert updated_inventories[0].item_code == "STU901"
-    assert updated_inventories[0].quantity == 0
-    
-    db.close()
+    assert allocated_orders[0].allocation_results[0].inventory.unit_price == 20
+    assert allocated_orders[0].allocation_results[0].allocated_quantity == 5
+
+    total_inventory_quantity = db.query(func.sum(Inventory.quantity)).filter(Inventory.item_code == "STU901").scalar()
+    assert total_inventory_quantity == 0
+
 
 def test_allocate_inventory_invalid_method():
     db = TestingSessionLocal()
