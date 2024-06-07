@@ -12,12 +12,12 @@ from dotenv import load_dotenv
 from main import app, get_db
 from models import Base
 
-# テスト用の環境変数ファイルを読み込むこと
-load_dotenv(".env.test")
+# テスト用の環境変数を設定する
+os.environ["TESTING"] = "True"
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://{os.environ['DB_USER']}:{os.environ['DB_PASSWORD']}@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}/{os.environ['DB_NAME']}"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# テスト用のデータベースセッションを作成する
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base.metadata.create_all(bind=engine)
