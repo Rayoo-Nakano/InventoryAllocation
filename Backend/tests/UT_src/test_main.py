@@ -13,7 +13,10 @@ from models import Base
 from schemas import OrderRequest, InventoryRequest, AllocationRequest
 from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+# テスト用の環境変数ファイルを読み込む
+load_dotenv(".env.test")
+
+SQLALCHEMY_DATABASE_URL = f"postgresql://{os.environ['DB_USER']}:{os.environ['DB_PASSWORD']}@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}/{os.environ['DB_NAME']}"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
