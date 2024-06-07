@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from main import app, get_db
 from models import Base
 
-# テスト用の環境変数ファイルを読み込む
+# テスト用の環境変数ファイルを読み込むこと
 load_dotenv(".env.test")
 
 SQLALCHEMY_DATABASE_URL = f"postgresql://{os.environ['DB_USER']}:{os.environ['DB_PASSWORD']}@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}/{os.environ['DB_NAME']}"
