@@ -12,133 +12,98 @@ formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-def allocate_inventory(db: Session, allocation_method: str):
-    orders = db.query(Order).all()
-    inventories = db.query(Inventory).all()
-    
-    allocation_results = []
-    
+def allocate_inventory(db: Session, allocation_strategy: str):
+    logger.info(f"Starting inventory allocation with strategy: {allocation_strategy}")
+
+    # 割り当て対象の注文を取得
+    orders = db.query(Order).filter(Order.quantity > 0).all()
+
     for order in orders:
+        remaining_quantity = order.quantity
         allocated_quantity = 0
-        allocated_price = 0
-        
-        try:
-            if allocation_method == "FIFO":
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code and inventory.quantity > 0:
-                        if inventory.quantity >= order.quantity - allocated_quantity:
-                            allocated_quantity += order.quantity - allocated_quantity
-                            allocated_price += (order.quantity - allocated_quantity) * inventory.unit_price
-                            inventory.quantity -= order.quantity - allocated_quantity
-                        else:
-                            allocated_quantity += inventory.quantity
-                            allocated_price += inventory.quantity * inventory.unit_price
-                            inventory.quantity = 0
-                        
-                        if allocated_quantity == order.quantity:
-                            break
-            
-            elif allocation_method == "LIFO":
-                for inventory in reversed(inventories):
-                    if inventory.item_code == order.item_code and inventory.quantity > 0:
-                        if inventory.quantity >= order.quantity - allocated_quantity:
-                            allocated_quantity += order.quantity - allocated_quantity
-                            allocated_price += (order.quantity - allocated_quantity) * inventory.unit_price
-                            inventory.quantity -= order.quantity - allocated_quantity
-                        else:
-                            allocated_quantity += inventory.quantity
-                            allocated_price += inventory.quantity * inventory.unit_price
-                            inventory.quantity = 0
-                        
-                        if allocated_quantity == order.quantity:
-                            break
-            
-            elif allocation_method == "AVERAGE":
-                total_quantity = sum(inventory.quantity for inventory in inventories if inventory.item_code == order.item_code)
-                total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories if inventory.item_code == order.item_code)
-                
-                if total_quantity >= order.quantity:
-                    average_price = total_price / total_quantity
-                    allocated_quantity = order.quantity
-                    allocated_price = order.quantity * average_price
-                    
-                    for inventory in inventories:
-                        if inventory.item_code == order.item_code:
-                            if inventory.quantity >= order.quantity:
-                                inventory.quantity -= order.quantity
-                                order.quantity = 0
-                            else:
-                                order.quantity -= inventory.quantity
-                                inventory.quantity = 0
-                            
-                            if order.quantity == 0:
-                                break
-            
-            elif allocation_method == "SPECIFIC":
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code and inventory.quantity >= order.quantity:
-                        allocated_quantity = order.quantity
-                        allocated_price = order.quantity * inventory.unit_price
-                        inventory.quantity -= order.quantity
-                        break
-            
-            elif allocation_method == "TOTAL_AVERAGE":
-                total_quantity = sum(inventory.quantity for inventory in inventories)
-                total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories)
-                
-                if total_quantity >= order.quantity:
-                    average_price = total_price / total_quantity
-                    allocated_quantity = order.quantity
-                    allocated_price = order.quantity * average_price
-                    
-                    for inventory in inventories:
-                        if inventory.quantity >= order.quantity:
-                            inventory.quantity -= order.quantity
-                            order.quantity = 0
-                        else:
-                            order.quantity -= inventory.quantity
-                            inventory.quantity = 0
-                        
-                        if order.quantity == 0:
-                            break
-            
-            elif allocation_method == "MOVING_AVERAGE":
-                total_quantity = 0
-                total_price = 0
-                
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code:
-                        total_quantity += inventory.quantity
-                        total_price += inventory.quantity * inventory.unit_price
-                        
-                        if total_quantity >= order.quantity:
-                            average_price = total_price / total_quantity
-                            allocated_quantity = order.quantity
-                            allocated_price = order.quantity * average_price
-                            
-                            inventory.quantity -= order.quantity
-                            break
-            
-            else:
-                raise ValueError("Invalid allocation method")
-            
+        allocated_price = 0.0
+
+        logger.info(f"Processing order {order.order_id} with item code {order.item_code} and quantity {order.quantity}")
+
+        if allocation_strategy == "FIFO":
+            # 在庫を取得し、入荷日時の昇順でソート
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.created_at).all()
+
+            for inventory in inventories:
+                if remaining_quantity <= 0:
+                    break
+
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * inventory.unit_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.inventory_id} at price {inventory.unit_price}")
+
+        elif allocation_strategy == "LIFO":
+            # 在庫を取得し、入荷日時の降順でソート
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.created_at.desc()).all()
+
+            for inventory in inventories:
+                if remaining_quantity <= 0:
+                    break
+
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * inventory.unit_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.inventory_id} at price {inventory.unit_price}")
+
+        elif allocation_strategy == "AVERAGE":
+            # 在庫を取得し、単価の昇順でソート
+            inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code, Inventory.quantity > 0).order_by(Inventory.unit_price).all()
+
+            # 在庫の総数量と総価格を計算
+            total_quantity = sum(inventory.quantity for inventory in inventories)
+            total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories)
+
+            # 在庫の平均単価を計算
+            average_price = total_price / total_quantity if total_quantity > 0 else 0.0
+
+            logger.info(f"Calculated average price: {average_price}")
+
+            for inventory in inventories:
+                if remaining_quantity <= 0:
+                    break
+
+                # 割り当てる数量を計算
+                quantity_to_allocate = min(remaining_quantity, inventory.quantity)
+                allocated_quantity += quantity_to_allocate
+                allocated_price += quantity_to_allocate * average_price
+                remaining_quantity -= quantity_to_allocate
+                inventory.quantity -= quantity_to_allocate
+
+                logger.info(f"Allocated {quantity_to_allocate} units from inventory {inventory.inventory_id} at average price {average_price}")
+
+        else:
+            logger.error(f"Invalid allocation strategy: {allocation_strategy}")
+            raise ValueError("Invalid allocation strategy")
+
+        if allocated_quantity > 0:
+            # 割り当て結果を作成
             allocation_result = AllocationResult(
                 order_id=order.order_id,
-                item_code=order.item_code,
                 allocated_quantity=allocated_quantity,
-                allocated_price=allocated_price,
-                allocation_date=datetime.now().date()
+                allocated_price=allocated_price
             )
-            
-            allocation_results.append(allocation_result)
-            
-            logger.info(f"Allocation completed for order {order.order_id}. Allocated quantity: {allocated_quantity}, Allocated price: {allocated_price}")
-        
-        except Exception as e:
-            logger.error(f"Error during allocation for order {order.order_id}: {str(e)}")
-            raise
-    
-    db.bulk_save_objects(allocation_results)
+            db.add(allocation_result)
+            order.quantity -= allocated_quantity  # 注文の数量を更新
+
+            logger.info(f"Created allocation result for order {order.order_id} with allocated quantity {allocated_quantity} and price {allocated_price}")
+        else:
+            logger.warning(f"No inventory allocated for order {order.order_id}")
+
+    # 変更をコミット
     db.commit()
-    
-    return allocation_results
+
+    logger.info("Inventory allocation completed")
