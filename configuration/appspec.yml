@@ -1,0 +1,16 @@
+version: 0.0
+Resources:
+  - InventoryAllocationTest1:
+      Type: AWS::Lambda::Function
+      Properties:
+        Name: "InventoryAllocationTest1"
+        Alias: "{{Alias}}"
+        CurrentVersion: "{{CurrentVersion}}"
+        TargetVersion: "{{TargetVersion}}"
+#        CurrentVersion: "{{CurrentVersion}}"
+#        TargetVersion: "{{TargetVersion}}"
+
+# Hooks:
+#  - BeforeAllowTraffic: "LambdaFunctionToValidateBeforeTrafficShift"
+#  - AfterAllowTraffic: "LambdaFunctionToValidateAfterTrafficShift"
+

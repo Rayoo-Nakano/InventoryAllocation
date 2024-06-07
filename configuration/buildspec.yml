@@ -1,0 +1,44 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+
+  build:
+    commands:
+      - ls
+      - ls Backend
+      - ls configuration
+
+      - pip install -r ./configuration/requirements.txt
+#      - python -m pytest
+  post_build:
+    commands:
+      - zip -r InventoryTest1.zip ./Backend/src
+      # Lambda関数名
+      - FUNCTION_NAME="InventoryAllocationTest1"
+      - aws lambda update-function-code --function-name $FUNCTION_NAME --zip-file fileb://InventoryTest1.zip
+      # Backup
+      - aws s3 cp configuration/buildspec.yml s3://codebuild-inventory-test1/configuration/
+      - aws s3 cp configuration/requirements.txt s3://codebuild-inventory-test1/configuration/
+
+      - echo "Starting appspec.yml create process..."
+    # エイリアス、現在のバージョン、ターゲットバージョンを取得
+      - ALIAS=$(aws lambda list-aliases --function-name $FUNCTION_NAME --query 'Aliases[?FunctionVersion!=`$LATEST`].Name' --output text)
+      - CURRENT_VERSION=$(aws lambda get-alias --function-name $FUNCTION_NAME --name $ALIAS --query 'FunctionVersion' --output text)
+      - TARGET_VERSION=$(aws lambda publish-version --function-name $FUNCTION_NAME --description "New version" --query 'Version' --output text)
+
+    # AppSpecファイルのプレースホルダーを実際の値に置き換える
+#      - sed -i "s/{{Name}}/$FUNCTION_NAME/g"              configuration/appspec.yml
+      - sed -i "s/{{Alias}}/$ALIAS/g"                     configuration/appspec.yml
+      - sed -i "s/{{CurrentVersion}}/$CURRENT_VERSION/g"  configuration/appspec.yml
+      - sed -i "s/{{TargetVersion}}/$TARGET_VERSION/g"    configuration/appspec.yml
+      - cat configuration/appspec.yml
+      - aws s3 cp configuration/appspec.yml s3://codebuild-inventory-test1/configuration/
+
+
+artifacts:
+  files:
+    - InventoryTest1.zip
+    - appspec.yml
