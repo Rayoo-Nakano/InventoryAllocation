@@ -1,8 +1,11 @@
+import sys
+sys.path.append("/path/to/Backend")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from ...src.main import app, get_db
+from src.main import app, get_db
 from models import Base
 from schemas import OrderRequest, InventoryRequest, AllocationRequest
 from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
