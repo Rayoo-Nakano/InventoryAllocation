@@ -1,5 +1,5 @@
 pytest
 fastapi
 sqlalchemy
-jose
+python-jose
 # pydantic
