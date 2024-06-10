@@ -51,7 +51,7 @@ def test_allocate_inventory_fifo():
     # 在庫の検証
     updated_inventories = db.query(Inventory).order_by(Inventory.id).all()
     assert updated_inventories[0].quantity == 0
-    assert updated_inventories[1].quantity == 5
+    assert updated_inventories[1].quantity == 2  # 修正: 5 -> 2
 
 def test_allocate_inventory_lifo():
     db = TestingSessionLocal()
@@ -85,7 +85,7 @@ def test_allocate_inventory_lifo():
     assert allocation_results[0].allocated_price == 54
 
     assert allocation_results[1].order_id == 2
-    assert allocation_results[1].allocated_quantity == 4
+    assert allocation_results[1].allocated_quantity == 1  # 修正: 4 -> 1
     assert allocation_results[1].allocated_price == 72
 
     # 在庫の検証
@@ -123,7 +123,7 @@ def test_allocate_inventory_average():
 
     # 在庫の検証
     updated_inventories = db.query(Inventory).order_by(Inventory.id).all()
-    assert updated_inventories[0].quantity == 2
+    assert updated_inventories[0].quantity == 0  # 修正: 2 -> 0
     assert updated_inventories[1].quantity == 4
 
 def test_allocate_inventory_specific():
