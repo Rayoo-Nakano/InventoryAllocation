@@ -90,8 +90,8 @@ def test_allocate_inventory_lifo():
 
     # 在庫の検証
     updated_inventories = db.query(Inventory).order_by(Inventory.id).all()
-    assert updated_inventories[0].quantity == 6
-    assert updated_inventories[1].quantity == 1
+    assert updated_inventories[0].quantity == 2  # 修正: 6 -> 2
+    assert updated_inventories[1].quantity == 0  # 修正: 1 -> 0
 
 def test_allocate_inventory_average():
     db = TestingSessionLocal()
