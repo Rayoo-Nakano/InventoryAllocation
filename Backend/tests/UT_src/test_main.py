@@ -45,7 +45,7 @@ def generate_test_token():
         "aud": COGNITO_AUDIENCE,
         "iss": COGNITO_ISSUER
     }
-    token = jwt.encode(payload, "test_secret_key", algorithm="HS256")
+    token = jwt.encode(payload, COGNITO_JWKS_URL, algorithm="RS256")
     return token
 
 def test_create_order_with_auth():
