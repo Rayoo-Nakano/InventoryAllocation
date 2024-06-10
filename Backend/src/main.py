@@ -5,6 +5,7 @@ from models import Order, Inventory, AllocationResult
 from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResponse, InventoryResponse, AllocationResultResponse, TokenPayload
 import jwt
 from jwt.exceptions import InvalidTokenError
+from datetime import datetime
 
 app = FastAPI()
 
@@ -48,7 +49,7 @@ async def authentication_middleware(request, call_next):
     return response
 
 @app.post("/orders", response_model=OrderResponse)
-def create_order(order: OrderRequest, db: Session = Depends(get_db)):
+def create_order(order: OrderRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     注文を作成するエンドポイント
     """
@@ -56,41 +57,42 @@ def create_order(order: OrderRequest, db: Session = Depends(get_db)):
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
-    return OrderResponse.from_orm(db_order)
+    return db_order
 
 @app.get("/orders", response_model=list[OrderResponse])
-def read_orders(db: Session = Depends(get_db)):
+def read_orders(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     注文一覧を取得するエンドポイント
     """
     orders = db.query(Order).all()
-    return [OrderResponse.from_orm(order) for order in orders]
+    return orders
 
 @app.post("/inventories", response_model=InventoryResponse)
-def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
+def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     在庫を作成するエンドポイント
     """
-    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity, receipt_date=inventory.receipt_date, unit_price=inventory.unit_price)
+    receipt_date = datetime.strptime(inventory.receipt_date, "%Y-%m-%d").date()
+    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity, receipt_date=receipt_date, unit_price=inventory.unit_price)
     db.add(db_inventory)
     db.commit()
     db.refresh(db_inventory)
-    return InventoryResponse.from_orm(db_inventory)
+    return db_inventory
 
 @app.get("/inventories", response_model=list[InventoryResponse])
-def read_inventories(db: Session = Depends(get_db)):
+def read_inventories(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     在庫一覧を取得するエンドポイント
     """
     inventories = db.query(Inventory).all()
-    return [InventoryResponse.from_orm(inventory) for inventory in inventories]
+    return inventories
 
-@app.post("/allocate", response_model=AllocationResultResponse)
-def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_db)):
+@app.post("/orders/{order_id}/allocate", response_model=AllocationResultResponse)
+def allocate_inventory(order_id: int, allocation: AllocationRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     在庫を割り当てるエンドポイント
     """
-    order = db.query(Order).filter(Order.id == allocation.order_id).first()
+    order = db.query(Order).filter(Order.id == order_id).first()
     inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code, Inventory.quantity >= allocation.quantity).order_by(Inventory.receipt_date).first()
 
     if not order:
@@ -99,16 +101,17 @@ def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="十分な在庫がありません")
 
     inventory.quantity -= allocation.quantity
-    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation.allocation_date)
+    allocation_date = datetime.strptime(allocation.allocation_date, "%Y-%m-%d").date()
+    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation_date)
     db.add(db_allocation)
     db.commit()
     db.refresh(db_allocation)
-    return AllocationResultResponse.from_orm(db_allocation)
+    return db_allocation
 
 @app.get("/allocation-results", response_model=list[AllocationResultResponse])
-def read_allocation_results(db: Session = Depends(get_db)):
+def read_allocation_results(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
-    割り当て結果一覧を取得するエンドポイントの試験
+    割り当て結果一覧を取得するエンドポイント
     """
     allocation_results = db.query(AllocationResult).all()
-    return [AllocationResultResponse.from_orm(result) for result in allocation_results]
+    return allocation_results
