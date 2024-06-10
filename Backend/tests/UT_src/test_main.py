@@ -5,6 +5,7 @@ grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
 sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -45,7 +46,13 @@ def generate_test_token():
         "aud": COGNITO_AUDIENCE,
         "iss": COGNITO_ISSUER
     }
-    token = jwt.encode(payload, COGNITO_JWKS_URL, algorithm="RS256")
+
+    # CognitoのJWKSから公開鍵を取得する
+    response = requests.get(COGNITO_JWKS_URL)
+    jwks = response.json()
+    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(jwks["keys"][0])
+
+    token = jwt.encode(payload, public_key, algorithm="RS256")
     return token
 
 def test_create_order_with_auth():
