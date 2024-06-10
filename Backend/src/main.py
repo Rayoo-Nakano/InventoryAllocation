@@ -106,7 +106,7 @@ def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_
 @app.get("/allocation-results", response_model=list[AllocationResultResponse])
 def read_allocation_results(db: Session = Depends(get_db)):
     """
-    割り当て結果一覧を取得するエンドポイント
+    割り当て結果一覧を取得するエンドポイントの試験
     """
     allocation_results = db.query(AllocationResult).all()
     return [AllocationResultResponse.from_orm(result) for result in allocation_results]
