@@ -5,6 +5,7 @@ from database import get_db
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
+import jwt
 
 client = TestClient(app)
 
@@ -27,9 +28,19 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 
-# テスト用の認証トークンを設定
-valid_token = "valid_token"
-invalid_token = "invalid_token"
+# テスト用の認証トークンを生成
+valid_token_payload = {
+    "sub": "valid_user_id",
+    "name": "Valid User",
+    "email": "valid@example.com"
+}
+invalid_token_payload = {
+    "sub": "invalid_user_id",
+    "name": "Invalid User",
+    "email": "invalid@example.com"
+}
+valid_token = jwt.encode(valid_token_payload, "your_secret_key", algorithm="HS256")
+invalid_token = jwt.encode(invalid_token_payload, "your_secret_key", algorithm="HS256")
 
 def test_create_order_success():
     """
@@ -83,18 +94,36 @@ def test_allocate_success():
     """
     在庫割り当ての成功テスト
     """
+    # 注文を作成
+    order_data = {
+        "item_code": "ABC123",
+        "quantity": 5
+    }
+    headers = {"Authorization": f"Bearer {valid_token}"}
+    response = client.post("/orders", json=order_data, headers=headers)
+    assert response.status_code == 200
+    order_id = response.json()["id"]
+
+    # 在庫を作成
+    inventory_data = {
+        "item_code": "ABC123",
+        "quantity": 10
+    }
+    response = client.post("/inventories", json=inventory_data, headers=headers)
+    assert response.status_code == 200
+
+    # 在庫割り当てを実行
     allocation_data = {
-        "order_id": 1,
+        "order_id": order_id,
         "item_code": "ABC123",
         "quantity": 3
     }
-    headers = {"Authorization": f"Bearer {valid_token}"}
     response = client.post("/allocate", json=allocation_data, headers=headers)
     assert response.status_code == 200
     assert "id" in response.json()
     assert response.json()["order_id"] == allocation_data["order_id"]
     assert response.json()["item_code"] == allocation_data["item_code"]
-    assert response.json()["quantity"] == allocation_data["quantity"]
+    assert response.json()["allocated_quantity"] == allocation_data["quantity"]
 
 def test_get_allocation_results_success():
     """
@@ -135,4 +164,4 @@ def test_authentication_failure():
     headers = {"Authorization": f"Bearer {invalid_token}"}
     response = client.get("/orders", headers=headers)
     assert response.status_code == 401
-    assert response.json() == {"detail": "無効な認証トークンです"}
+    assert response.json() == {"detail": "無効なトークンです"}

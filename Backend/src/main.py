@@ -2,9 +2,48 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Order, Inventory, AllocationResult
-from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResponse, InventoryResponse, AllocationResultResponse
+from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResponse, InventoryResponse, AllocationResultResponse, TokenPayload
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 app = FastAPI()
+
+COGNITO_PUBLIC_KEYS = {
+    "key_id_1": "public_key_1",
+    "key_id_2": "public_key_2",
+}
+
+def authenticate_token(token: str) -> TokenPayload:
+    """
+    Amazon Cognitoが発行するJWTトークンを検証する関数
+    """
+    try:
+        headers = jwt.get_unverified_header(token)
+        kid = headers["kid"]
+        public_key = COGNITO_PUBLIC_KEYS.get(kid)
+        if not public_key:
+            raise HTTPException(status_code=401, detail="無効なトークンです")
+        payload = jwt.decode(token, public_key, algorithms=["RS256"], audience="your_audience", issuer="your_issuer")
+        return TokenPayload(**payload)
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="無効なトークンです")
+
+@app.middleware("http")
+async def authentication_middleware(request, call_next):
+    """
+    認証ミドルウェア
+    """
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="認証トークンが見つからないか、無効です")
+    token = token.split(" ")[1]
+    try:
+        payload = authenticate_token(token)
+        request.state.user = payload
+    except HTTPException as e:
+        raise e
+    response = await call_next(request)
+    return response
 
 @app.post("/orders", response_model=OrderResponse)
 def create_order(order: OrderRequest, db: Session = Depends(get_db)):
@@ -49,18 +88,16 @@ def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_
     """
     在庫を割り当てるエンドポイント
     """
-    order = db.query(Order).filter(Order.order_id == allocation.order_id).first()
-    inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code).first()
+    order = db.query(Order).filter(Order.id == allocation.order_id).first()
+    inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code, Inventory.quantity >= allocation.quantity).order_by(Inventory.receipt_date).first()
 
     if not order:
         raise HTTPException(status_code=404, detail="注文が見つかりません")
     if not inventory:
-        raise HTTPException(status_code=404, detail="在庫が見つかりません")
-    if inventory.quantity < allocation.quantity:
-        raise HTTPException(status_code=400, detail="在庫数が不足しています")
+        raise HTTPException(status_code=404, detail="十分な在庫がありません")
 
     inventory.quantity -= allocation.quantity
-    db_allocation = AllocationResult(order_id=order.order_id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation.allocation_date)
+    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation.allocation_date)
     db.add(db_allocation)
     db.commit()
     db.refresh(db_allocation)
@@ -73,26 +110,3 @@ def read_allocation_results(db: Session = Depends(get_db)):
     """
     allocation_results = db.query(AllocationResult).all()
     return [AllocationResultResponse.from_orm(result) for result in allocation_results]
-
-def authenticate_token(token: str):
-    """
-    認証トークンを検証する関数
-    """
-    if token != "valid_token":
-        raise HTTPException(status_code=401, detail="無効な認証トークンです")
-
-@app.middleware("http")
-async def authentication_middleware(request, call_next):
-    """
-    認証ミドルウェア
-    """
-    token = request.headers.get("Authorization")
-    if not token or not token.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="認証トークンが見つからないか、無効です")
-    token = token.split(" ")[1]
-    try:
-        authenticate_token(token)
-    except HTTPException as e:
-        raise e
-    response = await call_next(request)
-    return response
