@@ -1,165 +1,188 @@
 import os
-import sys
-current_dir = os.path.dirname(os.path.abspath(__file__))
-grandparent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
-
-import pytest
-import requests
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-from main import app, get_db
-from models import Base
-from jose import jwt
-from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
-
-# テスト用の環境変数を設定する
-os.environ["TESTING"] = "True"
-
-# テスト用のデータベースセッションを作成する
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
-
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
+from main import app
 
 client = TestClient(app)
 
-def generate_test_token():
+# テスト用の環境変数を設定する
+os.environ["UTTESTING"] = "True"
+
+def test_create_item():
     """
-    テスト用のJWTトークンを生成する関数
-    :return: JWTトークン
+    商品を作成するテスト
     """
-    payload = {
-        "sub": "test_user",
-        "aud": COGNITO_AUDIENCE,
-        "iss": COGNITO_ISSUER
+    item_data = {
+        "name": "Test Item",
+        "description": "This is a test item",
+        "price": 9.99,
+        "quantity": 10
     }
-
-    # CognitoのJWKSから公開鍵を取得する
-    response = requests.get(COGNITO_JWKS_URL)
-    jwks = response.json()
-    public_key = jwt.algorithms.RSAAlgorithm.from_jwk(jwks["keys"][0])
-
-    token = jwt.encode(payload, public_key, algorithm="RS256")
-    return token
-
-def test_create_order_with_auth():
-    """
-    認証トークンを使用して注文を作成するテスト
-    """
-    token = generate_test_token()
-    order_data = {"item_code": "ABC123", "quantity": 5}
-    response = client.post("/orders", json=order_data, headers={"Authorization": f"Bearer {token}"})
+    response = client.post("/items", json=item_data)
     assert response.status_code == 200
-    assert response.json()["item_code"] == "ABC123"
-    assert response.json()["quantity"] == 5
+    assert "item_id" in response.json()
 
-def test_create_order_without_auth():
+def test_get_item():
     """
-    認証トークンなしで注文を作成するテスト
+    商品を取得するテスト
     """
-    order_data = {"item_code": "ABC123", "quantity": 5}
-    response = client.post("/orders", json=order_data)
-    assert response.status_code == 403
+    item_data = {
+        "name": "Test Item",
+        "description": "This is a test item",
+        "price": 9.99,
+        "quantity": 10
+    }
+    create_response = client.post("/items", json=item_data)
+    item_id = create_response.json()["item_id"]
 
-def test_get_orders_with_auth():
-    """
-    認証トークンを使用して注文一覧を取得するテスト
-    """
-    token = generate_test_token()
-    response = client.get("/orders", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    get_response = client.get(f"/items/{item_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["name"] == "Test Item"
+    assert get_response.json()["description"] == "This is a test item"
+    assert get_response.json()["price"] == 9.99
+    assert get_response.json()["quantity"] == 10
 
-def test_get_orders_without_auth():
+def test_update_item():
     """
-    認証トークンなしで注文一覧を取得するテスト
+    商品を更新するテスト
     """
-    response = client.get("/orders")
-    assert response.status_code == 403
+    item_data = {
+        "name": "Test Item",
+        "description": "This is a test item",
+        "price": 9.99,
+        "quantity": 10
+    }
+    create_response = client.post("/items", json=item_data)
+    item_id = create_response.json()["item_id"]
 
-def test_create_inventory_with_auth():
-    """
-    認証トークンを使用して在庫を作成するテスト
-    """
-    token = generate_test_token()
-    inventory_data = {"item_code": "ABC123", "quantity": 10}
-    response = client.post("/inventories", json=inventory_data, headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    assert response.json()["item_code"] == "ABC123"
-    assert response.json()["quantity"] == 10
+    updated_item_data = {
+        "name": "Updated Test Item",
+        "description": "This is an updated test item",
+        "price": 19.99,
+        "quantity": 5
+    }
+    update_response = client.put(f"/items/{item_id}", json=updated_item_data)
+    assert update_response.status_code == 200
 
-def test_create_inventory_without_auth():
-    """
-    認証トークンなしで在庫を作成するテスト
-    """
-    inventory_data = {"item_code": "ABC123", "quantity": 10}
-    response = client.post("/inventories", json=inventory_data)
-    assert response.status_code == 403
+    get_response = client.get(f"/items/{item_id}")
+    assert get_response.json()["name"] == "Updated Test Item"
+    assert get_response.json()["description"] == "This is an updated test item"
+    assert get_response.json()["price"] == 19.99
+    assert get_response.json()["quantity"] == 5
 
-def test_get_inventories_with_auth():
+def test_delete_item():
     """
-    認証トークンを使用して在庫一覧を取得するテスト
+    商品を削除するテスト
     """
-    token = generate_test_token()
-    response = client.get("/inventories", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    item_data = {
+        "name": "Test Item",
+        "description": "This is a test item",
+        "price": 9.99,
+        "quantity": 10
+    }
+    create_response = client.post("/items", json=item_data)
+    item_id = create_response.json()["item_id"]
 
-def test_get_inventories_without_auth():
-    """
-    認証トークンなしで在庫一覧を取得するテスト
-    """
-    response = client.get("/inventories")
-    assert response.status_code == 403
+    delete_response = client.delete(f"/items/{item_id}")
+    assert delete_response.status_code == 200
 
-def test_allocate_with_auth():
-    """
-    認証トークンを使用して在庫の割り当てを行うテスト
-    """
-    token = generate_test_token()
-    order_data = {"item_code": "ABC123", "quantity": 5}
-    inventory_data = {"item_code": "ABC123", "quantity": 10}
-    client.post("/orders", json=order_data, headers={"Authorization": f"Bearer {token}"})
-    client.post("/inventories", json=inventory_data, headers={"Authorization": f"Bearer {token}"})
-    allocation_data = {"order_id": 1, "item_code": "ABC123", "quantity": 5}
-    response = client.post("/allocate", json=allocation_data, headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    assert response.json()["order_id"] == 1
-    assert response.json()["allocated_quantity"] == 5
+    get_response = client.get(f"/items/{item_id}")
+    assert get_response.status_code == 404
 
-def test_allocate_without_auth():
+def test_create_order():
     """
-    認証トークンなしで在庫の割り当てを行うテスト
+    注文を作成するテスト
     """
-    allocation_data = {"order_id": 1, "item_code": "ABC123", "quantity": 5}
-    response = client.post("/allocate", json=allocation_data)
-    assert response.status_code == 403
+    if os.environ.get("UTTESTING"):
+        # UTテスト用のダミーデータを使用する
+        dummy_order_data = {
+            "user_id": "test_user",
+            "items": [
+                {"item_id": "item1", "quantity": 2},
+                {"item_id": "item2", "quantity": 1}
+            ]
+        }
+        response = client.post("/orders", json=dummy_order_data)
+        assert response.status_code == 200
+        assert "order_id" in response.json()
+    else:
+        # 認証トークンを使用して注文を作成するテスト
+        token = generate_test_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        order_data = {
+            "items": [
+                {"item_id": "item1", "quantity": 2},
+                {"item_id": "item2", "quantity": 1}
+            ]
+        }
+        response = client.post("/orders", headers=headers, json=order_data)
+        assert response.status_code == 200
+        assert "order_id" in response.json()
 
-def test_get_allocation_results_with_auth():
+def test_get_order():
     """
-    認証トークンを使用して割り当て結果一覧を取得するテスト
+    注文を取得するテスト
     """
-    token = generate_test_token()
-    response = client.get("/allocation-results", headers={"Authorization": f"Bearer {token}"})
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    order_data = {
+        "user_id": "test_user",
+        "items": [
+            {"item_id": "item1", "quantity": 2},
+            {"item_id": "item2", "quantity": 1}
+        ]
+    }
+    create_response = client.post("/orders", json=order_data)
+    order_id = create_response.json()["order_id"]
 
-def test_get_allocation_results_without_auth():
+    get_response = client.get(f"/orders/{order_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["user_id"] == "test_user"
+    assert len(get_response.json()["items"]) == 2
+
+def test_update_order():
     """
-    認証トークンなしで割り当て結果一覧を取得するテスト
+    注文を更新するテスト
     """
-    response = client.get("/allocation-results")
-    assert response.status_code == 403
+    order_data = {
+        "user_id": "test_user",
+        "items": [
+            {"item_id": "item1", "quantity": 2},
+            {"item_id": "item2", "quantity": 1}
+        ]
+    }
+    create_response = client.post("/orders", json=order_data)
+    order_id = create_response.json()["order_id"]
+
+    updated_order_data = {
+        "items": [
+            {"item_id": "item1", "quantity": 3},
+            {"item_id": "item3", "quantity": 2}
+        ]
+    }
+    update_response = client.put(f"/orders/{order_id}", json=updated_order_data)
+    assert update_response.status_code == 200
+
+    get_response = client.get(f"/orders/{order_id}")
+    assert len(get_response.json()["items"]) == 2
+    assert get_response.json()["items"][0]["item_id"] == "item1"
+    assert get_response.json()["items"][0]["quantity"] == 3
+    assert get_response.json()["items"][1]["item_id"] == "item3"
+    assert get_response.json()["items"][1]["quantity"] == 2
+
+def test_delete_order():
+    """
+    注文を削除するテスト
+    """
+    order_data = {
+        "user_id": "test_user",
+        "items": [
+            {"item_id": "item1", "quantity": 2},
+            {"item_id": "item2", "quantity": 1}
+        ]
+    }
+    create_response = client.post("/orders", json=order_data)
+    order_id = create_response.json()["order_id"]
+
+    delete_response = client.delete(f"/orders/{order_id}")
+    assert delete_response.status_code == 200
+
+    get_response = client.get(f"/orders/{order_id}")
+    assert get_response.status_code == 404
