@@ -33,56 +33,105 @@ app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
 
-@pytest.mark.skip("JWT token validation not implemented")
-def test_authenticate_user_valid_token():
-    # 有効なJWTトークンをモックする
-    valid_token = "valid_token"
-    response = client.post("/orders", headers={"Authorization": f"Bearer {valid_token}"})
-    assert response.status_code == 200
-
-@pytest.mark.skip("JWT token validation not implemented")
-def test_authenticate_user_invalid_token():
-    invalid_token = "invalid_token"
-    response = client.post("/orders", headers={"Authorization": f"Bearer {invalid_token}"})
-    assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid authentication token"}
-
-def test_create_order():
+def test_create_order_with_auth():
+    """
+    認証トークンを使用して注文を作成するテスト
+    """
     order_data = {"item_code": "ABC123", "quantity": 5}
-    response = client.post("/orders", json=order_data)
+    response = client.post("/orders", json=order_data, headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert response.json()["item_code"] == "ABC123"
     assert response.json()["quantity"] == 5
 
-def test_get_orders():
-    response = client.get("/orders")
+def test_create_order_without_auth():
+    """
+    認証トークンなしで注文を作成するテスト
+    """
+    order_data = {"item_code": "ABC123", "quantity": 5}
+    response = client.post("/orders", json=order_data)
+    assert response.status_code in [401, 403]
+
+def test_get_orders_with_auth():
+    """
+    認証トークンを使用して注文一覧を取得するテスト
+    """
+    response = client.get("/orders", headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
-def test_create_inventory():
+def test_get_orders_without_auth():
+    """
+    認証トークンなしで注文一覧を取得するテスト
+    """
+    response = client.get("/orders")
+    assert response.status_code in [401, 403]
+
+def test_create_inventory_with_auth():
+    """
+    認証トークンを使用して在庫を作成するテスト
+    """
     inventory_data = {"item_code": "ABC123", "quantity": 10}
-    response = client.post("/inventories", json=inventory_data)
+    response = client.post("/inventories", json=inventory_data, headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert response.json()["item_code"] == "ABC123"
     assert response.json()["quantity"] == 10
 
-def test_get_inventories():
-    response = client.get("/inventories")
+def test_create_inventory_without_auth():
+    """
+    認証トークンなしで在庫を作成するテスト
+    """
+    inventory_data = {"item_code": "ABC123", "quantity": 10}
+    response = client.post("/inventories", json=inventory_data)
+    assert response.status_code in [401, 403]
+
+def test_get_inventories_with_auth():
+    """
+    認証トークンを使用して在庫一覧を取得するテスト
+    """
+    response = client.get("/inventories", headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
-def test_allocate():
+def test_get_inventories_without_auth():
+    """
+    認証トークンなしで在庫一覧を取得するテスト
+    """
+    response = client.get("/inventories")
+    assert response.status_code in [401, 403]
+
+def test_allocate_with_auth():
+    """
+    認証トークンを使用して在庫の割り当てを行うテスト
+    """
     order_data = {"item_code": "ABC123", "quantity": 5}
     inventory_data = {"item_code": "ABC123", "quantity": 10}
-    client.post("/orders", json=order_data)
-    client.post("/inventories", json=inventory_data)
+    client.post("/orders", json=order_data, headers={"Authorization": "Bearer valid_token"})
+    client.post("/inventories", json=inventory_data, headers={"Authorization": "Bearer valid_token"})
     allocation_data = {"order_id": 1, "item_code": "ABC123", "quantity": 5}
-    response = client.post("/allocate", json=allocation_data)
+    response = client.post("/allocate", json=allocation_data, headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert response.json()["order_id"] == 1
     assert response.json()["allocated_quantity"] == 5
 
-def test_get_allocation_results():
-    response = client.get("/allocation-results")
+def test_allocate_without_auth():
+    """
+    認証トークンなしで在庫の割り当てを行うテスト
+    """
+    allocation_data = {"order_id": 1, "item_code": "ABC123", "quantity": 5}
+    response = client.post("/allocate", json=allocation_data)
+    assert response.status_code in [401, 403]
+
+def test_get_allocation_results_with_auth():
+    """
+    認証トークンを使用して割り当て結果一覧を取得するテスト
+    """
+    response = client.get("/allocation-results", headers={"Authorization": "Bearer valid_token"})
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+def test_get_allocation_results_without_auth():
+    """
+    認証トークンなしで割り当て結果一覧を取得するテスト
+    """
+    response = client.get("/allocation-results")
+    assert response.status_code in [401, 403]

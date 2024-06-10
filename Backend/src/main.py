@@ -22,6 +22,11 @@ handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s -
 logger.addHandler(handler)
 
 async def authenticate_user(auth_token: str = Depends(auth_scheme)):
+    """
+    ユーザー認証を行う関数
+    :param auth_token: 認証トークン
+    :return: トークンのペイロードデータ
+    """
     try:
         payload = jwt.decode(auth_token.credentials, COGNITO_JWKS_URL, audience=COGNITO_AUDIENCE, issuer=COGNITO_ISSUER)
         token_data = TokenPayload(**payload)
@@ -32,6 +37,12 @@ async def authenticate_user(auth_token: str = Depends(auth_scheme)):
 
 @app.post("/orders", dependencies=[Depends(authenticate_user)])
 def create_order(order: OrderRequest, db: Session = Depends(get_db)):
+    """
+    注文を作成する関数
+    :param order: 注文リクエストデータ
+    :param db: データベースセッション
+    :return: 作成された注文データ
+    """
     try:
         db_order = Order(item_code=order.item_code, quantity=order.quantity)
         db.add(db_order)
@@ -46,6 +57,11 @@ def create_order(order: OrderRequest, db: Session = Depends(get_db)):
 
 @app.get("/orders", dependencies=[Depends(authenticate_user)])
 def get_orders(db: Session = Depends(get_db)):
+    """
+    全ての注文を取得する関数
+    :param db: データベースセッション
+    :return: 全ての注文データ
+    """
     try:
         orders = db.query(Order).all()
         logger.info(f"Retrieved {len(orders)} orders")
@@ -56,6 +72,12 @@ def get_orders(db: Session = Depends(get_db)):
 
 @app.post("/inventories", dependencies=[Depends(authenticate_user)])
 def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
+    """
+    在庫を作成する関数
+    :param inventory: 在庫リクエストデータ
+    :param db: データベースセッション
+    :return: 作成された在庫データ
+    """
     try:
         db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
         db.add(db_inventory)
@@ -70,6 +92,11 @@ def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db))
 
 @app.get("/inventories", dependencies=[Depends(authenticate_user)])
 def get_inventories(db: Session = Depends(get_db)):
+    """
+    全ての在庫を取得する関数
+    :param db: データベースセッション
+    :return: 全ての在庫データ
+    """
     try:
         inventories = db.query(Inventory).all()
         logger.info(f"Retrieved {len(inventories)} inventories")
@@ -80,6 +107,12 @@ def get_inventories(db: Session = Depends(get_db)):
 
 @app.post("/allocate", dependencies=[Depends(authenticate_user)])
 def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
+    """
+    在庫の割り当てを行う関数
+    :param allocation: 割り当てリクエストデータ
+    :param db: データベースセッション
+    :return: 割り当て結果データ
+    """
     try:
         allocation_result = allocate_inventory(allocation.order_id, allocation.item_code, allocation.quantity, db)
         logger.info(f"Allocation completed: {allocation_result}")
@@ -91,6 +124,11 @@ def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
 
 @app.get("/allocation-results", dependencies=[Depends(authenticate_user)])
 def get_allocation_results(db: Session = Depends(get_db)):
+    """
+    全ての割り当て結果を取得する関数
+    :param db: データベースセッション
+    :return: 全ての割り当て結果データ
+    """
     try:
         allocation_results = db.query(AllocationResult).all()
         logger.info(f"Retrieved {len(allocation_results)} allocation results")
