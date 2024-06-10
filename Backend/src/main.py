@@ -48,7 +48,7 @@ async def authentication_middleware(request, call_next):
     response = await call_next(request)
     return response
 
-@app.post("/orders", response_model=OrderResponse)
+@app.post("/orders", response_model=OrderResponse, status_code=201)  # ここにstatus_code=201を追加
 def create_order(order: OrderRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     注文を作成するエンドポイント
@@ -67,7 +67,7 @@ def read_orders(db: Session = Depends(get_db), token_payload: TokenPayload = Dep
     orders = db.query(Order).all()
     return orders
 
-@app.post("/inventories", response_model=InventoryResponse)
+@app.post("/inventories", response_model=InventoryResponse, status_code=201)  # ここにstatus_code=201を追加
 def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
     """
     在庫を作成するエンドポイント

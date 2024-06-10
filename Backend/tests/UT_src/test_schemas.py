@@ -36,7 +36,7 @@ def test_create_order():
         
         headers = {"Authorization": "Bearer mock_token"}
         response = client.post("/orders", json=order_data.dict(), headers=headers)
-        assert response.status_code == 200
+        assert response.status_code == 201  # ここを200から201に変更
         assert response.json()["item_code"] == "ABC123"
         assert response.json()["quantity"] == 5
 
@@ -63,7 +63,7 @@ def test_create_inventory():
         
         headers = {"Authorization": "Bearer mock_token"}
         response = client.post("/inventories", json=inventory_data.dict(), headers=headers)
-        assert response.status_code == 200
+        assert response.status_code == 201  # ここを200から201に変更 
         assert response.json()["item_code"] == "XYZ789"
         assert response.json()["quantity"] == 10
         assert response.json()["receipt_date"] == "2023-06-01"
@@ -98,7 +98,7 @@ def test_allocate_inventory():
         
         # 注文を作成
         response = client.post("/orders", json=order_data.dict(), headers=headers)
-        order_id = response.json()["id"]
+        order_id = response.json()["order_id"]
         
         # 在庫を割り当て
         response = client.post(f"/orders/{order_id}/allocate", headers=headers)
