@@ -6,7 +6,7 @@ from datetime import datetime
 class Order(Base):
     __tablename__ = "orders"  # テーブル名を "orders" に設定
 
-    order_id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # 注文IDをプライマリキーに設定
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)  # 注文IDをプライマリキーに設定
     item_code = Column(String, index=True)  # 商品コード
     quantity = Column(Integer)  # 数量
     allocated = Column(Boolean, default=False)  # 割当済みかどうかを示すフラグ
@@ -27,7 +27,7 @@ class AllocationResult(Base):
     __tablename__ = "allocation_results"  # テーブル名を "allocation_results" に設定
 
     id = Column(Integer, primary_key=True, index=True)  # 割当結果IDをプライマリキーに設定
-    order_id = Column(Integer, ForeignKey("orders.order_id"))  # 注文IDを外部キーに設定
+    order_id = Column(Integer, ForeignKey("orders.id"))  # 注文IDを外部キーに設定
     item_code = Column(String, index=True)  # 商品コード
     allocated_quantity = Column(Integer)  # 割当数量
     allocated_price = Column(Float)  # 割当価格

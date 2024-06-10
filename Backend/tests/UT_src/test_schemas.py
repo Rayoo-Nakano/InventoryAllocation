@@ -1,9 +1,10 @@
 from fastapi.testclient import TestClient
-from main import app, get_db
+from main import app, get_db, authenticate_token
 from models import Order, Inventory, AllocationResult
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import date
+from unittest import mock
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
@@ -24,31 +25,76 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 def test_create_order():
+    """
+    注文の作成をテストする関数
+    """
     order_data = {"item_code": "ABC123", "quantity": 5}
-    response = client.post("/orders", json=order_data)
-    assert response.status_code == 200
-    assert response.json()["item_code"] == "ABC123"
-    assert response.json()["quantity"] == 5
+    
+    with mock.patch("main.authenticate_token") as mock_authenticate_token:
+        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
+        
+        response = client.post("/orders", json=order_data)
+        assert response.status_code == 200
+        assert response.json()["item_code"] == "ABC123"
+        assert response.json()["quantity"] == 5
 
 def test_get_orders():
-    response = client.get("/orders")
-    assert response.status_code == 200
-    assert len(response.json()) > 0
+    """
+    注文の取得をテストする関数
+    """
+    with mock.patch("main.authenticate_token") as mock_authenticate_token:
+        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
+        
+        response = client.get("/orders")
+        assert response.status_code == 200
+        assert len(response.json()) > 0
 
 def test_create_inventory():
+    """
+    在庫の作成をテストする関数
+    """
     inventory_data = {"item_code": "XYZ789", "quantity": 10, "receipt_date": "2023-06-01", "unit_price": 9.99}
-    response = client.post("/inventories", json=inventory_data)
-    assert response.status_code == 200
-    assert response.json()["item_code"] == "XYZ789"
-    assert response.json()["quantity"] == 10
-    assert response.json()["receipt_date"] == "2023-06-01"
-    assert response.json()["unit_price"] == 9.99
+    
+    with mock.patch("main.authenticate_token") as mock_authenticate_token:
+        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
+        
+        response = client.post("/inventories", json=inventory_data)
+        assert response.status_code == 200
+        assert response.json()["item_code"] == "XYZ789"
+        assert response.json()["quantity"] == 10
+        assert response.json()["receipt_date"] == "2023-06-01"
+        assert response.json()["unit_price"] == 9.99
 
 def test_get_inventories():
-    response = client.get("/inventories")
-    assert response.status_code == 200
-    assert len(response.json()) > 0
+    """
+    在庫の取得をテストする関数
+    """
+    with mock.patch("main.authenticate_token") as mock_authenticate_token:
+        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
+        
+        response = client.get("/inventories")
+        assert response.status_code == 200
+        assert len(response.json()) > 0
 
 def test_allocate_inventory():
-    order = Order(item_code="ABC123", quantity=5)
-    inventory
+    """
+    在庫の割り当てをテストする関数
+    """
+    order_data = {"item_code": "ABC123", "quantity": 5}
+    inventory_data = {"item_code": "ABC123", "quantity": 10, "receipt_date": "2023-06-01", "unit_price": 9.99}
+    
+    with mock.patch("main.authenticate_token") as mock_authenticate_token:
+        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
+        
+        # 在庫を作成
+        client.post("/inventories", json=inventory_data)
+        
+        # 注文を作成
+        response = client.post("/orders", json=order_data)
+        order_id = response.json()["id"]
+        
+        # 在庫を割り当て
+        response = client.post(f"/orders/{order_id}/allocate")
+        assert response.status_code == 200
+        assert response.json()["allocated_quantity"] == 5
+        assert response.json()["allocated_price"] == 9.99
