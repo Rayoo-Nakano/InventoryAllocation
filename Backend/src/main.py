@@ -15,39 +15,41 @@ def create_order(order: OrderRequest, db: Session = Depends(get_db)):
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
-    return db_order
+    return OrderResponse.from_orm(db_order)
 
 @app.get("/orders", response_model=list[OrderResponse])
 def read_orders(db: Session = Depends(get_db)):
     """
     注文一覧を取得するエンドポイント
     """
-    return db.query(Order).all()
+    orders = db.query(Order).all()
+    return [OrderResponse.from_orm(order) for order in orders]
 
 @app.post("/inventories", response_model=InventoryResponse)
 def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
     """
     在庫を作成するエンドポイント
     """
-    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
+    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity, receipt_date=inventory.receipt_date, unit_price=inventory.unit_price)
     db.add(db_inventory)
     db.commit()
     db.refresh(db_inventory)
-    return db_inventory
+    return InventoryResponse.from_orm(db_inventory)
 
 @app.get("/inventories", response_model=list[InventoryResponse])
 def read_inventories(db: Session = Depends(get_db)):
     """
     在庫一覧を取得するエンドポイント
     """
-    return db.query(Inventory).all()
+    inventories = db.query(Inventory).all()
+    return [InventoryResponse.from_orm(inventory) for inventory in inventories]
 
 @app.post("/allocate", response_model=AllocationResultResponse)
 def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_db)):
     """
     在庫を割り当てるエンドポイント
     """
-    order = db.query(Order).filter(Order.id == allocation.order_id).first()
+    order = db.query(Order).filter(Order.order_id == allocation.order_id).first()
     inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code).first()
 
     if not order:
@@ -58,18 +60,19 @@ def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="在庫数が不足しています")
 
     inventory.quantity -= allocation.quantity
-    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity)
+    db_allocation = AllocationResult(order_id=order.order_id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation.allocation_date)
     db.add(db_allocation)
     db.commit()
     db.refresh(db_allocation)
-    return db_allocation
+    return AllocationResultResponse.from_orm(db_allocation)
 
 @app.get("/allocation-results", response_model=list[AllocationResultResponse])
 def read_allocation_results(db: Session = Depends(get_db)):
     """
     割り当て結果一覧を取得するエンドポイント
     """
-    return db.query(AllocationResult).all()
+    allocation_results = db.query(AllocationResult).all()
+    return [AllocationResultResponse.from_orm(result) for result in allocation_results]
 
 def authenticate_token(token: str):
     """
