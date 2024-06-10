@@ -4,3 +4,4 @@ sqlalchemy
 python-jose
 # pydantic
 psycopg2-binary     # PythonでPostgreSQLデータベースに接続するためのライブラリ
+pyjwt               #JSON Web Tokenを扱うためのPythonライブラリ
