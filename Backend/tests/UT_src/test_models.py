@@ -54,7 +54,7 @@ def test_create_allocation_result():
         item_code="DEF456",
         allocated_quantity=3,
         allocated_price=60,
-        allocation_date="2023-06-08"
+        allocation_date=date(2023, 6, 8)  # date オブジェクトを使用
     )
     db.add(allocation_result)
     db.commit()
@@ -63,7 +63,7 @@ def test_create_allocation_result():
     assert result.item_code == "DEF456"
     assert result.allocated_quantity == 3
     assert result.allocated_price == 60
-    assert str(result.allocation_date) == "2023-06-08"
+    assert result.allocation_results[0].allocation_date == date(2023, 6, 8)  # date オブジェクトと比較
     
     db.close()
 
