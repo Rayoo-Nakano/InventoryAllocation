@@ -51,11 +51,11 @@ def test_create_allocation_result():
     db.commit()
 
     allocation_result = AllocationResult(
-        order_id=order.id,  # order_id を order.id に変更
+        order_id=order.id,
         item_code="DEF456",
         allocated_quantity=3,
         allocated_price=60,
-        allocation_date=date(2023, 6, 8)  # date オブジェクトを使用
+        allocation_date=date(2023, 6, 8)
     )
     db.add(allocation_result)
     db.commit()
@@ -64,7 +64,7 @@ def test_create_allocation_result():
     assert result.item_code == "DEF456"
     assert result.allocated_quantity == 3
     assert result.allocated_price == 60
-    assert result.allocation_results[0].allocation_date == date(2023, 6, 8)  # date オブジェクトと比較
+    assert result.allocation_date == date(2023, 6, 8)
     
     db.close()
 
@@ -76,17 +76,20 @@ def test_order_relationship():
     db.commit()
     
     allocation_result = AllocationResult(
-        order_id=order.order_id,
+        order_id=order.id,
         item_code="GHI789",
         allocated_quantity=2,
         allocated_price=40,
-        allocation_date="2023-06-08"
+        allocation_date=date(2023, 6, 8)
     )
     db.add(allocation_result)
     db.commit()
     
-    retrieved_order = db.query(Order).filter(Order.order_id == order.order_id).first()
+    retrieved_order = db.query(Order).filter(Order.id == order.id).first()
     assert len(retrieved_order.allocation_results) == 1
     assert retrieved_order.allocation_results[0].item_code == "GHI789"
+    assert retrieved_order.allocation_results[0].allocated_quantity == 2
+    assert retrieved_order.allocation_results[0].allocated_price == 40
+    assert retrieved_order.allocation_results[0].allocation_date == date(2023, 6, 8)
     
     db.close()
