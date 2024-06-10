@@ -1,134 +1,95 @@
-import os
-from fastapi.testclient import TestClient
-from main import app, get_db
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from models import Base
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Order, Inventory, AllocationResult
+from schemas import OrderCreate, InventoryCreate, AllocationCreate
 
-client = TestClient(app)
+app = FastAPI()
 
-# テスト用のデータベースを設定
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+@app.post("/orders", response_model=Order)
+def create_order(order: OrderCreate, db: Session = Depends(get_db)):
+    """
+    注文を作成するエンドポイント
+    """
+    db_order = Order(item_code=order.item_code, quantity=order.quantity)
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    return db_order
 
-Base.metadata.create_all(bind=engine)
+@app.get("/orders", response_model=list[Order])
+def read_orders(db: Session = Depends(get_db)):
+    """
+    注文一覧を取得するエンドポイント
+    """
+    return db.query(Order).all()
 
-def override_get_db():
+@app.post("/inventories", response_model=Inventory)
+def create_inventory(inventory: InventoryCreate, db: Session = Depends(get_db)):
+    """
+    在庫を作成するエンドポイント
+    """
+    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
+    db.add(db_inventory)
+    db.commit()
+    db.refresh(db_inventory)
+    return db_inventory
+
+@app.get("/inventories", response_model=list[Inventory])
+def read_inventories(db: Session = Depends(get_db)):
+    """
+    在庫一覧を取得するエンドポイント
+    """
+    return db.query(Inventory).all()
+
+@app.post("/allocate", response_model=AllocationResult)
+def allocate_inventory(allocation: AllocationCreate, db: Session = Depends(get_db)):
+    """
+    在庫を割り当てるエンドポイント
+    """
+    order = db.query(Order).filter(Order.id == allocation.order_id).first()
+    inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="注文が見つかりません")
+    if not inventory:
+        raise HTTPException(status_code=404, detail="在庫が見つかりません")
+    if inventory.quantity < allocation.quantity:
+        raise HTTPException(status_code=400, detail="在庫数が不足しています")
+
+    inventory.quantity -= allocation.quantity
+    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, quantity=allocation.quantity)
+    db.add(db_allocation)
+    db.commit()
+    db.refresh(db_allocation)
+    return db_allocation
+
+@app.get("/allocation-results", response_model=list[AllocationResult])
+def read_allocation_results(db: Session = Depends(get_db)):
+    """
+    割り当て結果一覧を取得するエンドポイント
+    """
+    return db.query(AllocationResult).all()
+
+def authenticate_token(token: str):
+    """
+    認証トークンを検証する関数
+    """
+    if token != "valid_token":
+        raise HTTPException(status_code=401, detail="無効な認証トークンです")
+
+@app.middleware("http")
+async def authentication_middleware(request, call_next):
+    """
+    認証ミドルウェア
+    """
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="認証トークンが見つからないか、無効です")
+    token = token.split(" ")[1]
     try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-app.dependency_overrides[get_db] = override_get_db
-
-# テスト用の認証トークンを設定
-valid_token = "valid_token"
-invalid_token = "invalid_token"
-
-def test_create_order_success():
-    """
-    注文作成の成功テスト
-    """
-    order_data = {
-        "item_code": "ABC123",
-        "quantity": 5
-    }
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.post("/orders", json=order_data, headers=headers)
-    assert response.status_code == 200
-    assert "id" in response.json()
-    assert response.json()["item_code"] == order_data["item_code"]
-    assert response.json()["quantity"] == order_data["quantity"]
-
-def test_get_orders_success():
-    """
-    注文一覧取得の成功テスト
-    """
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.get("/orders", headers=headers)
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-def test_create_inventory_success():
-    """
-    在庫作成の成功テスト
-    """
-    inventory_data = {
-        "item_code": "ABC123",
-        "quantity": 10
-    }
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.post("/inventories", json=inventory_data, headers=headers)
-    assert response.status_code == 200
-    assert "id" in response.json()
-    assert response.json()["item_code"] == inventory_data["item_code"]
-    assert response.json()["quantity"] == inventory_data["quantity"]
-
-def test_get_inventories_success():
-    """
-    在庫一覧取得の成功テスト
-    """
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.get("/inventories", headers=headers)
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-def test_allocate_success():
-    """
-    在庫割り当ての成功テスト
-    """
-    allocation_data = {
-        "order_id": 1,
-        "item_code": "ABC123",
-        "quantity": 3
-    }
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.post("/allocate", json=allocation_data, headers=headers)
-    assert response.status_code == 200
-    assert "id" in response.json()
-    assert response.json()["order_id"] == allocation_data["order_id"]
-    assert response.json()["item_code"] == allocation_data["item_code"]
-    assert response.json()["quantity"] == allocation_data["quantity"]
-
-def test_get_allocation_results_success():
-    """
-    割り当て結果一覧取得の成功テスト
-    """
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.get("/allocation-results", headers=headers)
-    assert response.status_code == 200
-    assert isinstance(response.json(), list)
-
-def test_get_nonexistent_endpoint():
-    """
-    存在しないエンドポイントへのアクセステスト
-    """
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.get("/nonexistent-endpoint", headers=headers)
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Not Found"}
-
-def test_create_order_invalid_data():
-    """
-    無効なデータでの注文作成テスト
-    """
-    order_data = {
-        "item_code": "",
-        "quantity": -1
-    }
-    headers = {"Authorization": f"Bearer {valid_token}"}
-    response = client.post("/orders", json=order_data, headers=headers)
-    assert response.status_code == 422
-    assert response.json()["detail"][0]["msg"] == "ensure this value has at least 1 characters"
-    assert response.json()["detail"][1]["msg"] == "ensure this value is greater than 0"
-
-def test_authentication_failure():
-    """
-    認証失敗のテスト
-    """
-    headers = {"Authorization": f"Bearer {invalid_token}"}
-    response = client.get("/orders", headers=headers)
-    assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid authentication token"}
+        authenticate_token(token)
+    except HTTPException as e:
+        raise e
+    response = await call_next(request)
+    return response
