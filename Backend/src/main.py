@@ -6,6 +6,22 @@ from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResp
 import jwt
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime
+import logging
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# ログ出力のフォーマットを設定
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# コンソールハンドラを作成し、フォーマットを設定
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+
+# ロガーにコンソールハンドラを追加
+logger.addHandler(console_handler)
+
 
 app = FastAPI()
 
@@ -57,6 +73,10 @@ def create_order(order: OrderRequest, db: Session = Depends(get_db), token_paylo
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
+
+    # レスポンスデータをログ出力
+    logger.debug(f"Response data: {db_order.__dict__}")
+    
     return db_order
 
 @app.get("/orders", response_model=list[OrderResponse])
