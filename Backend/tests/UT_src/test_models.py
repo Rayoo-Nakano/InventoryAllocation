@@ -44,13 +44,13 @@ def test_create_inventory():
 
 def test_create_allocation_result():
     db = TestingSessionLocal()
-    
+
     order = Order(item_code="DEF456", quantity=3)
     db.add(order)
     db.commit()
-    
+
     allocation_result = AllocationResult(
-        order_id=order.order_id,
+        order_id=order.id,  # order_id を order.id に変更
         item_code="DEF456",
         allocated_quantity=3,
         allocated_price=60,
@@ -58,13 +58,12 @@ def test_create_allocation_result():
     )
     db.add(allocation_result)
     db.commit()
-    
-    retrieved_allocation_result = db.query(AllocationResult).filter(AllocationResult.order_id == order.order_id).first()
-    assert retrieved_allocation_result.order_id == order.order_id
-    assert retrieved_allocation_result.item_code == "DEF456"
-    assert retrieved_allocation_result.allocated_quantity == 3
-    assert retrieved_allocation_result.allocated_price == 60
-    assert str(retrieved_allocation_result.allocation_date) == "2023-06-08"
+
+    result = db.query(AllocationResult).filter(AllocationResult.order_id == order.id).first()
+    assert result.item_code == "DEF456"
+    assert result.allocated_quantity == 3
+    assert result.allocated_price == 60
+    assert str(result.allocation_date) == "2023-06-08"
     
     db.close()
 
