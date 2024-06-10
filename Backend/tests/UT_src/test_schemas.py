@@ -4,6 +4,7 @@ from models import Order, Inventory, AllocationResult
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import date
+from schemas import client, InventoryCreate, OrderCreate
 from unittest import mock
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"

@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base, Order, Inventory, AllocationResult
+from datetime import date
 
 # テスト用のデータベースセッションを作成する
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
