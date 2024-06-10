@@ -19,7 +19,9 @@ def authenticate_token(token: str) -> TokenPayload:
     """
     try:
         headers = jwt.get_unverified_header(token)
-        kid = headers["kid"]
+        kid = headers.get("kid")
+        if not kid:
+            raise HTTPException(status_code=401, detail="無効なトークンです")
         public_key = COGNITO_PUBLIC_KEYS.get(kid)
         if not public_key:
             raise HTTPException(status_code=401, detail="無効なトークンです")
@@ -27,7 +29,7 @@ def authenticate_token(token: str) -> TokenPayload:
         return TokenPayload(**payload)
     except InvalidTokenError:
         raise HTTPException(status_code=401, detail="無効なトークンです")
-
+    
 @app.middleware("http")
 async def authentication_middleware(request, call_next):
     """
