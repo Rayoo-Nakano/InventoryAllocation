@@ -2,12 +2,12 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Order, Inventory, AllocationResult
-from schemas import OrderCreate, InventoryCreate, AllocationCreate
+from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResponse, InventoryResponse, AllocationResultResponse
 
 app = FastAPI()
 
-@app.post("/orders", response_model=Order)
-def create_order(order: OrderCreate, db: Session = Depends(get_db)):
+@app.post("/orders", response_model=OrderResponse)
+def create_order(order: OrderRequest, db: Session = Depends(get_db)):
     """
     注文を作成するエンドポイント
     """
@@ -17,15 +17,15 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     db.refresh(db_order)
     return db_order
 
-@app.get("/orders", response_model=list[Order])
+@app.get("/orders", response_model=list[OrderResponse])
 def read_orders(db: Session = Depends(get_db)):
     """
     注文一覧を取得するエンドポイント
     """
     return db.query(Order).all()
 
-@app.post("/inventories", response_model=Inventory)
-def create_inventory(inventory: InventoryCreate, db: Session = Depends(get_db)):
+@app.post("/inventories", response_model=InventoryResponse)
+def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
     """
     在庫を作成するエンドポイント
     """
@@ -35,15 +35,15 @@ def create_inventory(inventory: InventoryCreate, db: Session = Depends(get_db)):
     db.refresh(db_inventory)
     return db_inventory
 
-@app.get("/inventories", response_model=list[Inventory])
+@app.get("/inventories", response_model=list[InventoryResponse])
 def read_inventories(db: Session = Depends(get_db)):
     """
     在庫一覧を取得するエンドポイント
     """
     return db.query(Inventory).all()
 
-@app.post("/allocate", response_model=AllocationResult)
-def allocate_inventory(allocation: AllocationCreate, db: Session = Depends(get_db)):
+@app.post("/allocate", response_model=AllocationResultResponse)
+def allocate_inventory(allocation: AllocationRequest, db: Session = Depends(get_db)):
     """
     在庫を割り当てるエンドポイント
     """
@@ -58,13 +58,13 @@ def allocate_inventory(allocation: AllocationCreate, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="在庫数が不足しています")
 
     inventory.quantity -= allocation.quantity
-    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, quantity=allocation.quantity)
+    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity)
     db.add(db_allocation)
     db.commit()
     db.refresh(db_allocation)
     return db_allocation
 
-@app.get("/allocation-results", response_model=list[AllocationResult])
+@app.get("/allocation-results", response_model=list[AllocationResultResponse])
 def read_allocation_results(db: Session = Depends(get_db)):
     """
     割り当て結果一覧を取得するエンドポイント
