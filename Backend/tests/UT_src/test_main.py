@@ -7,6 +7,20 @@ client = TestClient(app)
 # テスト用の環境変数を設定する
 os.environ["UTTESTING"] = "True"
 
+def test_create_item_unauthorized():
+    """
+    認証なしで商品を作成するテスト（失敗するテストケース）
+    """
+    item_data = {
+        "name": "Test Item",
+        "description": "This is a test item",
+        "price": 9.99,
+        "quantity": 10
+    }
+    response = client.post("/items", json=item_data)
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
+
 def test_create_item():
     """
     商品を作成するテスト
@@ -18,7 +32,7 @@ def test_create_item():
         "quantity": 10
     }
     response = client.post("/items", json=item_data)
-    assert response.status_code == 200
+    assert response.status_code == 201
     assert "item_id" in response.json()
 
 def test_get_item():
@@ -36,10 +50,10 @@ def test_get_item():
 
     get_response = client.get(f"/items/{item_id}")
     assert get_response.status_code == 200
-    assert get_response.json()["name"] == "Test Item"
-    assert get_response.json()["description"] == "This is a test item"
-    assert get_response.json()["price"] == 9.99
-    assert get_response.json()["quantity"] == 10
+    assert get_response.json()["name"] == item_data["name"]
+    assert get_response.json()["description"] == item_data["description"]
+    assert get_response.json()["price"] == item_data["price"]
+    assert get_response.json()["quantity"] == item_data["quantity"]
 
 def test_update_item():
     """
@@ -64,10 +78,10 @@ def test_update_item():
     assert update_response.status_code == 200
 
     get_response = client.get(f"/items/{item_id}")
-    assert get_response.json()["name"] == "Updated Test Item"
-    assert get_response.json()["description"] == "This is an updated test item"
-    assert get_response.json()["price"] == 19.99
-    assert get_response.json()["quantity"] == 5
+    assert get_response.json()["name"] == updated_item_data["name"]
+    assert get_response.json()["description"] == updated_item_data["description"]
+    assert get_response.json()["price"] == updated_item_data["price"]
+    assert get_response.json()["quantity"] == updated_item_data["quantity"]
 
 def test_delete_item():
     """
@@ -83,7 +97,7 @@ def test_delete_item():
     item_id = create_response.json()["item_id"]
 
     delete_response = client.delete(f"/items/{item_id}")
-    assert delete_response.status_code == 200
+    assert delete_response.status_code == 204
 
     get_response = client.get(f"/items/{item_id}")
     assert get_response.status_code == 404
@@ -92,31 +106,16 @@ def test_create_order():
     """
     注文を作成するテスト
     """
-    if os.environ.get("UTTESTING"):
-        # UTテスト用のダミーデータを使用する
-        dummy_order_data = {
-            "user_id": "test_user",
-            "items": [
-                {"item_id": "item1", "quantity": 2},
-                {"item_id": "item2", "quantity": 1}
-            ]
-        }
-        response = client.post("/orders", json=dummy_order_data)
-        assert response.status_code == 200
-        assert "order_id" in response.json()
-    else:
-        # 認証トークンを使用して注文を作成するテスト
-        token = generate_test_token()
-        headers = {"Authorization": f"Bearer {token}"}
-        order_data = {
-            "items": [
-                {"item_id": "item1", "quantity": 2},
-                {"item_id": "item2", "quantity": 1}
-            ]
-        }
-        response = client.post("/orders", headers=headers, json=order_data)
-        assert response.status_code == 200
-        assert "order_id" in response.json()
+    dummy_order_data = {
+        "user_id": "test_user",
+        "items": [
+            {"item_id": "item1", "quantity": 2},
+            {"item_id": "item2", "quantity": 1}
+        ]
+    }
+    response = client.post("/orders", json=dummy_order_data)
+    assert response.status_code == 201
+    assert "order_id" in response.json()
 
 def test_get_order():
     """
@@ -134,8 +133,11 @@ def test_get_order():
 
     get_response = client.get(f"/orders/{order_id}")
     assert get_response.status_code == 200
-    assert get_response.json()["user_id"] == "test_user"
-    assert len(get_response.json()["items"]) == 2
+    assert get_response.json()["user_id"] == order_data["user_id"]
+    assert len(get_response.json()["items"]) == len(order_data["items"])
+    for i in range(len(order_data["items"])):
+        assert get_response.json()["items"][i]["item_id"] == order_data["items"][i]["item_id"]
+        assert get_response.json()["items"][i]["quantity"] == order_data["items"][i]["quantity"]
 
 def test_update_order():
     """
@@ -161,11 +163,10 @@ def test_update_order():
     assert update_response.status_code == 200
 
     get_response = client.get(f"/orders/{order_id}")
-    assert len(get_response.json()["items"]) == 2
-    assert get_response.json()["items"][0]["item_id"] == "item1"
-    assert get_response.json()["items"][0]["quantity"] == 3
-    assert get_response.json()["items"][1]["item_id"] == "item3"
-    assert get_response.json()["items"][1]["quantity"] == 2
+    assert len(get_response.json()["items"]) == len(updated_order_data["items"])
+    for i in range(len(updated_order_data["items"])):
+        assert get_response.json()["items"][i]["item_id"] == updated_order_data["items"][i]["item_id"]
+        assert get_response.json()["items"][i]["quantity"] == updated_order_data["items"][i]["quantity"]
 
 def test_delete_order():
     """
@@ -182,7 +183,7 @@ def test_delete_order():
     order_id = create_response.json()["order_id"]
 
     delete_response = client.delete(f"/orders/{order_id}")
-    assert delete_response.status_code == 200
+    assert delete_response.status_code == 204
 
     get_response = client.get(f"/orders/{order_id}")
     assert get_response.status_code == 404
