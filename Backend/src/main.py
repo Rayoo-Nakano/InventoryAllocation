@@ -75,8 +75,10 @@ def create_order(order: OrderRequest, db: Session = Depends(get_db), token_paylo
     db.refresh(db_order)
 
     # レスポンスデータをログ出力
+    logger.debug("==== Create Order Response Data ====")
     logger.debug(f"Response data: {db_order.__dict__}")
-    
+    logger.debug("=====================================")
+
     return db_order
 
 @app.get("/orders", response_model=list[OrderResponse])
