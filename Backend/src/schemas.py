@@ -72,3 +72,5 @@ class AllocationResultResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+

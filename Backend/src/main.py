@@ -106,6 +106,10 @@ def read_inventories(db: Session = Depends(get_db), token_payload: TokenPayload 
     """
     在庫一覧を取得するエンドポイント
     """
+    logger.debug("==== Get Inventories ====")
+    logger.debug(f"Token Payload: {token_payload}")
+    logger.debug("==========================")
+
     inventories = db.query(Inventory).all()
     return inventories
 
