@@ -63,8 +63,8 @@ def test_allocate_inventory_lifo():
     db.commit()
 
     # テストデータの作成
-    order1 = Order(order_id=1, item_code="XYZ789", quantity=3, allocated=False)
-    order2 = Order(order_id=2, item_code="XYZ789", quantity=5, allocated=False)
+    order1 = Order(id=1, item_code="XYZ789", quantity=3, allocated=False)
+    order2 = Order(id=2, item_code="XYZ789", quantity=5, allocated=False)
     db.add_all([order1, order2])
 
     inventory1 = Inventory(item_code="XYZ789", quantity=6, unit_price=15)
@@ -103,7 +103,7 @@ def test_allocate_inventory_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="DEF456", quantity=6, allocated=False)
+    order = Order(id=1, item_code="DEF456", quantity=6, allocated=False)
     db.add(order)
 
     inventory1 = Inventory(item_code="DEF456", quantity=4, unit_price=20)
@@ -136,7 +136,7 @@ def test_allocate_inventory_specific():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="GHI789", quantity=3, allocated=False)
+    order = Order(id=1, item_code="GHI789", quantity=3, allocated=False)
     db.add(order)
 
     inventory1 = Inventory(item_code="GHI789", quantity=2, unit_price=15)
@@ -169,7 +169,7 @@ def test_allocate_inventory_total_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="JKL012", quantity=7, allocated=False)
+    order = Order(id=1, item_code="JKL012", quantity=7, allocated=False)
     db.add(order)
 
     inventory1 = Inventory(item_code="JKL012", quantity=3, unit_price=10)
@@ -202,7 +202,7 @@ def test_allocate_inventory_moving_average():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="PQR678", quantity=4, allocated=False)
+    order = Order(id=1, item_code="PQR678", quantity=4, allocated=False)
     db.add(order)
 
     inventory1 = Inventory(item_code="PQR678", quantity=2, unit_price=25)
@@ -235,7 +235,7 @@ def test_allocate_inventory_insufficient_inventory():
     db.commit()
 
     # テストデータの作成
-    order = Order(order_id=1, item_code="STU901", quantity=10, allocated=False)
+    order = Order(id=1, item_code="STU901", quantity=10, allocated=False)
     db.add(order)
 
     inventory = Inventory(item_code="STU901", quantity=5, unit_price=20)
