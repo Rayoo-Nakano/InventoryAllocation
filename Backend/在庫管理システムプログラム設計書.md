@@ -1,3 +1,14 @@
+# 目次
+- [在庫管理システム API設計書](#在庫管理システム-api設計書)
+- [在庫割り当てプログラム設計書](#在庫割り当てプログラム設計書)
+- [スキーマ定義設計書](#スキーマ定義設計書)
+- [データベースモデル設計書](#データベースモデル設計書)
+- [データベース設定設計書](#データベース設定設計書)
+- [AWS Cognito設定設計書](#aws-cognito設定設計書)
+- [データベース接続設定設計書](#データベース接続設定設計書)
+
+Note）本設計書及びプログラムの最新版はGitHubの[Rayoo-Nakano/InventoryAllocation](https://github.com/Rayoo-Nakano/InventoryAllocation "Rayoo-Nakano/InventoryAllocation")に常時更新しています。
+
 # 在庫管理システム API設計書
 
 ## 1. 概要
@@ -66,7 +77,7 @@ graph TD
 
 ```mermaid
 graph TD
-    A[クライアント] --> B[POST /orders/{order_id}/allocate]
+    A[クライアント] --> B[POST /orders/allocate]
     B --> C{認証ミドルウェア}
     C --> |認証成功| D{注文の存在確認}
     C --> |認証失敗| E[401 Unauthorized]
