@@ -1,894 +1,800 @@
-## プログラム設計書 - 在庫引当機能
+# 在庫管理システム API設計書
 
-### 1. 概要
-   - 本プログラムは、受注から一般的な6種類の在庫引当を実施するためのバックエンドシステムを提供する。
-   - プログラミング言語はPython、フレームワークはFastAPI、データベースはAmazon RDSのPostgreSQLを使用する。
-   - デプロイ先はAWS Lambdaとする。
+## 1. 概要
 
-### 2. 機能要件
-   - 受注データの登録、取得
-   - 在庫データの登録、取得
-   - 在庫引当の実行（先入先出法、後入先出法、平均法、個別法、総平均法、移動平均法）
-   - 引当結果の保存、取得
+本設計書は、在庫管理システムのAPI設計について説明します。このシステムは、注文の作成、在庫の管理、在庫の割り当てなどの機能を提供します。
 
-### 3. システムアーキテクチャ
-   - APIサーバー：FastAPIを使用してRESTfulなAPIエンドポイントを提供する。
-   - データベース：Amazon RDSのPostgreSQLを使用してデータを永続化する。
-   - ORM：SQLAlchemyを使用してデータベースとのやり取りを行う。
-   - AWS Lambda：APIエンドポイントをサーバーレスで実行する。
-   - Amazon API Gateway：APIエンドポイントへのアクセスを管理する。
+## 2. システム構成
 
-### 4. データモデル
-   - Order（受注）：order_id, item_code, quantity
-   - Inventory（在庫）：item_code, quantity, receipt_date, unit_price
-   - AllocationResult（引当結果）：allocation_id, order_id, item_code, allocated_quantity, allocated_price, allocation_date
-   - Item（商品マスタ）：item_code, item_name, category, unit_price
+### 2.1 使用技術
 
-### 5. APIエンドポイント
-   - POST /orders：受注データの登録
-   - GET /orders：受注データの取得
-   - POST /inventories：在庫データの登録
-   - GET /inventories：在庫データの取得
-   - POST /allocate：在庫引当の実行
-   - GET /allocation-results：引当結果の取得
+- FastAPI: Pythonの高速なWebフレームワーク
+- SQLAlchemy: Pythonのオブジェクトリレーショナルマッピング（ORM）ライブラリ
+- JWT: JSON Web Tokenを使用した認証
+- Amazon Cognito: 認証プロバイダ
 
-### 6. 在庫引当ロジック
-   - 先入先出法（FIFO）：最も古い在庫から順番に引き当てる。
-   - 後入先出法（LIFO）：最も新しい在庫から順番に引き当てる。
-   - 平均法：在庫の平均単価で引き当てる。
-   - 個別法：受注に対応する在庫を個別に引き当てる。
-   - 総平均法：全ての在庫の平均単価で引き当てる。
-   - 移動平均法：引当時点での在庫の平均単価で引き当てる。
+### 2.2 主要なエンドポイント
 
-### 7. ブロック図
-このブロック図は、アプリケーションの主要なコンポーネントとそれらの相互関係を示しています。
+- `/orders`: 注文の作成と取得
+- `/inventories`: 在庫の作成と取得
+- `/orders/{order_id}/allocate`: 在庫の割り当て
+- `/allocation-results`: 割り当て結果の取得
+
+## 3. 認証と認可
+
+### 3.1 認証方式
+
+本システムでは、Amazon Cognitoが発行するJWTトークンを使用して認証を行います。クライアントは、APIリクエストのヘッダーに有効なJWTトークンを含める必要があります。
+
+### 3.2 認証ミドルウェア
+
+`authentication_middleware`は、リクエストヘッダーからJWTトークンを取得し、トークンの検証を行います。検証に成功した場合、トークンのペイロードがリクエストの状態に追加されます。
+
+### 3.3 トークン検証関数
+
+`authenticate_token`関数は、Amazon CognitoのJWTトークンを検証するために使用されます。トークンのヘッダーからキーIDを取得し、対応する公開鍵を使用してトークンの署名を検証します。
+
+## 4. プログラムフロー図
+
+### 4.1 注文の作成フロー
 
 ```mermaid
-graph LR
-    A[Frontend] --> B[API main.py]
-    B --> C[allocation.py]
-    B --> D[models.py]
-    B --> E[database.py]
-    B --> F[schemas.py]
-    C --> D
-    C --> E
+graph TD
+    A[クライアント] --> B[POST /orders]
+    B --> C{認証ミドルウェア}
+    C --> |認証成功| D[注文の作成]
+    C --> |認証失敗| E[401 Unauthorized]
+    D --> F[注文をデータベースに保存]
+    F --> G[201 Created]
+    G --> A
+```
+
+### 4.2 在庫の作成フロー
+
+```mermaid
+graph TD
+    A[クライアント] --> B[POST /inventories]
+    B --> C{認証ミドルウェア}
+    C --> |認証成功| D[在庫の作成]
+    C --> |認証失敗| E[401 Unauthorized]
+    D --> F[在庫をデータベースに保存]
+    F --> G[201 Created]
+    G --> A
+```
+
+### 4.3 在庫の割り当てフロー
+
+```mermaid
+graph TD
+    A[クライアント] --> B[POST /orders/{order_id}/allocate]
+    B --> C{認証ミドルウェア}
+    C --> |認証成功| D{注文の存在確認}
+    C --> |認証失敗| E[401 Unauthorized]
+    D --> |注文が存在する| F{在庫の確認}
+    D --> |注文が存在しない| G[404 Not Found]
+    F --> |十分な在庫がある| H[在庫の割り当て]
+    F --> |十分な在庫がない| I[404 Not Found]
+    H --> J[割り当て結果をデータベースに保存]
+    J --> K[割り当て結果を返す]
+    K --> A
+```
+
+## 5. データモデル
+
+以下は、システムで使用されるデータモデルを示すブロック図です。
+
+```mermaid
+classDiagram
+    class Order {
+        +int id
+        +str item_code
+        +int quantity
+    }
+    class Inventory {
+        +int id
+        +str item_code
+        +int quantity
+        +date receipt_date
+        +float unit_price
+    }
+    class AllocationResult {
+        +int id
+        +int order_id
+        +str item_code
+        +int allocated_quantity
+        +float allocated_price
+        +date allocation_date
+    }
+```
+
+## 6. エンドポイント
+
+### 6.1 注文の作成
+
+- エンドポイント: `/orders`
+- メソッド: POST
+- リクエストボディ: `OrderRequest`
+- レスポンス: `OrderResponse`
+- ステータスコード: 201 (Created)
+
+このエンドポイントは、新しい注文を作成するために使用されます。リクエストボディに注文の詳細を含める必要があります。
+
+### 6.2 注文の取得
+
+- エンドポイント: `/orders`
+- メソッド: GET
+- レスポンス: `list[OrderResponse]`
+
+このエンドポイントは、すべての注文を取得するために使用されます。
+
+### 6.3 在庫の作成
+
+- エンドポイント: `/inventories`
+- メソッド: POST
+- リクエストボディ: `InventoryRequest`
+- レスポンス: `InventoryResponse`
+- ステータスコード: 201 (Created)
+
+このエンドポイントは、新しい在庫を作成するために使用されます。リクエストボディに在庫の詳細を含める必要があります。
+
+### 6.4 在庫の取得
+
+- エンドポイント: `/inventories`
+- メソッド: GET
+- レスポンス: `list[InventoryResponse]`
+
+このエンドポイントは、すべての在庫を取得するために使用されます。
+
+### 6.5 在庫の割り当て
+
+- エンドポイント: `/orders/{order_id}/allocate`
+- メソッド: POST
+- パスパラメータ: `order_id`
+- リクエストボディ: `AllocationRequest`
+- レスポンス: `AllocationResultResponse`
+
+このエンドポイントは、特定の注文に在庫を割り当てるために使用されます。パスパラメータに注文IDを指定し、リクエストボディに割り当ての詳細を含める必要があります。
+
+### 6.6 割り当て結果の取得
+
+- エンドポイント: `/allocation-results`
+- メソッド: GET
+- レスポンス: `list[AllocationResultResponse]`
+
+このエンドポイントは、すべての割り当て結果を取得するために使用されます。
+
+## 7. ロギング
+
+本システムでは、ロギング機能を提供しています。`logging`モジュールを使用して、ログメッセージをコンソールに出力します。ログレベルはDEBUGに設定されており、ログメッセージにはタイムスタンプ、ロガー名、ログレベル、メッセージが含まれます。
+
+## 8. エラーハンドリング
+
+APIエンドポイントでは、適切なエラーハンドリングを行っています。エラーが発生した場合、対応するHTTPステータスコードとエラーメッセージを返します。
+
+- 認証エラー: 401 (Unauthorized)
+- リソースが見つからない: 404 (Not Found)
+
+## 9. 結論
+
+本設計書では、在庫管理システムのAPI設計について説明しました。FastAPIを使用してエンドポイントを定義し、SQLAlchemyを使用してデータベースとのやり取りを行います。認証にはAmazon CognitoのJWTトークンを使用し、ミドルウェアで認証を処理します。各エンドポイントの機能とリクエスト/レスポンスの詳細を提供し、データモデルを示しました。また、ロギングとエラーハンドリングについても説明しました。プログラムフロー図を使用して、主要なAPIエンドポイントの処理の流れを視覚的に表現しました。
+
+
+
+
+# 在庫割り当てプログラム設計書
+
+## 1. 概要
+
+本設計書は、在庫割り当てプログラムの設計について説明します。このプログラムは、注文に対して在庫を割り当てるための様々な戦略を実装しています。
+
+## 2. プログラム構成
+
+### 2.1 ファイル構成
+
+- `main.py`: メインプログラムファイル
+- `models.py`: データモデルを定義するファイル
+- `database.py`: データベース接続を管理するファイル
+
+### 2.2 主要な関数
+
+- `allocate_inventory`: 在庫割り当てを実行する関数
+- `allocate_fifo`: FIFO戦略で在庫割り当てを実行する関数
+- `allocate_lifo`: LIFO戦略で在庫割り当てを実行する関数
+- `allocate_average`: 平均価格戦略で在庫割り当てを実行する関数
+- `allocate_specific`: 特定の在庫から割り当てを実行する関数
+- `allocate_total_average`: 全体の平均価格で在庫割り当てを実行する関数
+- `allocate_moving_average`: 移動平均価格で在庫割り当てを実行する関数
+- `create_allocation_result`: 割り当て結果を作成する関数
+
+## 3. プログラムフロー
+
+以下は、プログラムの全体的なフローを示すフロー図です。
+
+```mermaid
+graph TD
+    A[プログラム開始] --> B{割り当て戦略の選択}
+    B --> C{FIFO戦略}
+    B --> D{LIFO戦略}
+    B --> E{平均価格戦略}
+    B --> F{特定在庫戦略}
+    B --> G{全体平均価格戦略}
+    B --> H{移動平均価格戦略}
+    C --> I[FIFO戦略で在庫割り当て]
+    D --> J[LIFO戦略で在庫割り当て]
+    E --> K[平均価格戦略で在庫割り当て]
+    F --> L[特定在庫から割り当て]
+    G --> M[全体平均価格で在庫割り当て]
+    H --> N[移動平均価格で在庫割り当て]
+    I --> O[割り当て結果の作成]
+    J --> O
+    K --> O
+    L --> O
+    M --> O
+    N --> O
+    O --> P[プログラム終了]
+```
+
+## 4. 在庫割り当て戦略
+
+### 4.1 FIFO (First-In-First-Out) 引当
+
+- 説明: 先入先出法。最も古い在庫から順番に引き当てる方法。
+- 数式:
+  - 引当数量 = min(注文数量, 在庫数量)
+  - 引当価格 = 引当数量 × 在庫単価
+
+### 4.2 LIFO (Last-In-First-Out) 引当
+
+- 説明: 後入先出法。最も新しい在庫から順番に引き当てる方法。
+- 数式:
+  - 引当数量 = min(注文数量, 在庫数量)
+  - 引当価格 = 引当数量 × 在庫単価
+
+### 4.3 平均引当 (Average Allocation)
+
+- 説明: 在庫の平均単価を使用して引き当てる方法。
+- 数式:
+  - 平均単価 = (在庫数量1 × 在庫単価1 + 在庫数量2 × 在庫単価2 + ...) / (在庫数量1 + 在庫数量2 + ...)
+  - 引当価格 = 注文数量 × 平均単価
+
+### 4.4 特定在庫引当 (Specific Allocation)
+
+- 説明: 特定の在庫から注文数量分を引き当てる方法。
+- 数式:
+  - 引当数量 = 注文数量
+  - 引当価格 = 引当数量 × 特定在庫の単価
+
+### 4.5 全体平均引当 (Total Average Allocation)
+
+- 説明: 全ての在庫の平均単価を使用して引き当てる方法。
+- 数式:
+  - 全体平均単価 = (在庫数量1 × 在庫単価1 + 在庫数量2 × 在庫単価2 + ...) / (在庫数量1 + 在庫数量2 + ...)
+  - 引当価格 = 注文数量 × 全体平均単価
+
+### 4.6 移動平均引当 (Moving Average Allocation)
+
+- 説明: 直近の一定数の在庫の平均単価を使用して引き当てる方法。
+- 数式:
+  - 移動平均単価 = (直近の在庫単価1 + 直近の在庫単価2 + ...) / ウィンドウサイズ
+  - 引当価格 = 注文数量 × 移動平均単価
+
+## 5. データモデル
+
+以下は、プログラムで使用されるデータモデルを示すブロック図です。
+
+```mermaid
+classDiagram
+    class Order {
+        +int order_id
+        +str item_code
+        +int quantity
+        +bool allocated
+    }
+    class Inventory {
+        +int id
+        +str item_code
+        +int quantity
+        +float unit_price
+    }
+    class AllocationResult {
+        +int order_id
+        +int allocated_quantity
+        +float allocated_price
+    }
+```
+
+## 6. API説明
+
+本プログラムでは、以下のAPIを提供しています。
+
+### 6.1 在庫割り当てAPI
+
+- エンドポイント: `/allocate_inventory`
+- メソッド: POST
+- リクエストボディ:
+  - `strategy`: 割り当て戦略 (文字列)
+- レスポンス:
+  - ステータスコード: 200 (成功)
+  - ボディ: なし
+
+このAPIは、指定された割り当て戦略に基づいて在庫割り当てを実行します。リクエストボディで割り当て戦略を指定する必要があります。
+
+### 6.2 割り当て結果取得API
+
+- エンドポイント: `/allocation_results`
+- メソッド: GET
+- レスポンス:
+  - ステータスコード: 200 (成功)
+  - ボディ: 割り当て結果のリスト
+    - `order_id`: 注文ID
+    - `allocated_quantity`: 割り当てられた数量
+    - `allocated_price`: 割り当てられた価格
+
+このAPIは、割り当て結果の一覧を取得するために使用されます。レスポンスとして、割り当て結果のリストが返されます。
+
+## 7. 結論
+
+本設計書では、在庫割り当てプログラムの設計について説明しました。プログラムは様々な割り当て戦略を実装しており、注文に対して在庫を効率的に割り当てることができます。また、APIを通じて在庫割り当ての実行と結果の取得が可能です。プログラムのフローとデータモデルを理解することで、プログラムの動作を把握し、必要に応じて拡張や修正を行うことができます。
+
+
+# スキーマ定義設計書
+
+## 1. 概要
+
+本設計書は、在庫管理システムで使用されるPydanticモデルについて説明します。これらのモデルは、APIリクエストとレスポンスのデータ構造を定義し、データの検証とシリアライズを行います。
+
+## 2. モデル定義
+
+### 2.1 TokenPayload
+
+`TokenPayload`モデルは、JWTトークンのペイロードを表します。
+
+- `sub`: ユーザーの一意の識別子
+- `cognito_username`: Cognito上のユーザー名
+- `email`: ユーザーのメールアドレス
+- `email_verified`: メールアドレスが検証済みかどうかを示すフラグ
+- `given_name`: ユーザーの名
+- `family_name`: ユーザーの姓
+- `roles`: ユーザーが持つロールのリスト
+- `iss`: トークンの発行者
+- `aud`: トークンの対象者
+- `exp`: トークンの有効期限
+- `iat`: トークンの発行日時
+
+### 2.2 OrderRequest
+
+`OrderRequest`モデルは、注文リクエストのデータ構造を定義します。
+
+- `item_code`: 商品コード
+- `quantity`: 数量
+
+### 2.3 InventoryRequest
+
+`InventoryRequest`モデルは、在庫リクエストのデータ構造を定義します。
+
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `receipt_date`: 入荷日
+- `unit_price`: 単価
+
+`receipt_date`フィールドには、`parse_receipt_date`バリデーターが適用されます。このバリデーターは、入力された日付文字列を`datetime`オブジェクトに変換し、ISOフォーマットで返します。
+
+### 2.4 AllocationRequest
+
+`AllocationRequest`モデルは、在庫割り当てリクエストのデータ構造を定義します。
+
+- `order_id`: 注文ID
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `allocation_date`: 割当日
+
+`allocation_date`フィールドには、`parse_allocation_date`バリデーターが適用されます。このバリデーターは、入力された日付文字列を`datetime`オブジェクトに変換し、ISOフォーマットで返します。
+
+### 2.5 OrderResponse
+
+`OrderResponse`モデルは、注文レスポンスのデータ構造を定義します。
+
+- `order_id`: 注文ID
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `allocated`: 割当済みかどうかを示すフラグ
+
+このモデルには、`Config`クラスが定義されており、`orm_mode`が`True`に設定されています。これにより、SQLAlchemyモデルインスタンスから直接Pydanticモデルへの変換が可能になります。
+
+### 2.6 InventoryResponse
+
+`InventoryResponse`モデルは、在庫レスポンスのデータ構造を定義します。
+
+- `id`: 在庫ID
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `receipt_date`: 入荷日
+- `unit_price`: 単価
+- `created_at`: 作成日時
+
+このモデルにも、`Config`クラスが定義されており、`orm_mode`が`True`に設定されています。また、`json_encoders`が定義されており、`datetime`オブジェクトをISOフォーマットの文字列に変換します。
+
+### 2.7 AllocationResultResponse
+
+`AllocationResultResponse`モデルは、在庫割り当て結果レスポンスのデータ構造を定義します。
+
+- `id`: 割当結果ID
+- `order_id`: 注文ID
+- `item_code`: 商品コード
+- `allocated_quantity`: 割当数量
+- `allocated_price`: 割当価格
+- `allocation_date`: 割当日
+
+このモデルにも、`Config`クラスが定義されており、`orm_mode`が`True`に設定されています。
+
+## 3. モデル関連図
+
+以下は、モデル間の関連を示すブロック図です。
+
+```mermaid
+classDiagram
+    class TokenPayload {
+        +str sub
+        +str cognito_username
+        +str email
+        +bool email_verified
+        +str given_name
+        +str family_name
+        +List[str] roles
+        +str iss
+        +str aud
+        +int exp
+        +int iat
+    }
+    class OrderRequest {
+        +str item_code
+        +int quantity
+    }
+    class InventoryRequest {
+        +str item_code
+        +int quantity
+        +str receipt_date
+        +float unit_price
+    }
+    class AllocationRequest {
+        +int order_id
+        +str item_code
+        +int quantity
+        +str allocation_date
+    }
+    class OrderResponse {
+        +int order_id
+        +str item_code
+        +int quantity
+        +bool allocated
+    }
+    class InventoryResponse {
+        +int id
+        +str item_code
+        +int quantity
+        +str receipt_date
+        +float unit_price
+        +datetime created_at
+    }
+    class AllocationResultResponse {
+        +int id
+        +int order_id
+        +str item_code
+        +int allocated_quantity
+        +float allocated_price
+        +str allocation_date
+    }
+```
+
+## 4. 結論
+
+本設計書では、在庫管理システムで使用されるPydanticモデルについて説明しました。これらのモデルは、APIリクエストとレスポンスのデータ構造を定義し、データの検証とシリアライズを行います。モデル間の関連を示すブロック図も提供しました。これらのモデルを使用することで、APIエンドポイントとのデータのやり取りを円滑に行うことができます。
+
+
+# データベースモデル設計書
+
+## 1. 概要
+
+本設計書は、在庫管理システムで使用されるSQLAlchemyモデルについて説明します。これらのモデルは、データベースのテーブル構造を定義し、データの永続化と取得を行います。
+
+## 2. モデル定義
+
+### 2.1 Order
+
+`Order`モデルは、注文情報を表します。
+
+- `id`: 注文ID（プライマリキー）
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `allocated`: 割当済みかどうかを示すフラグ
+
+`Order`モデルは、`AllocationResult`モデルとのリレーションシップを持ちます。
+
+### 2.2 Inventory
+
+`Inventory`モデルは、在庫情報を表します。
+
+- `id`: 在庫ID（プライマリキー）
+- `item_code`: 商品コード
+- `quantity`: 数量
+- `receipt_date`: 入荷日
+- `unit_price`: 単価
+- `created_at`: 作成日時
+
+### 2.3 AllocationResult
+
+`AllocationResult`モデルは、在庫割り当て結果を表します。
+
+- `id`: 割当結果ID（プライマリキー）
+- `order_id`: 注文ID（外部キー）
+- `item_code`: 商品コード
+- `allocated_quantity`: 割当数量
+- `allocated_price`: 割当価格
+- `allocation_date`: 割当日
+
+`AllocationResult`モデルは、`Order`モデルとのリレーションシップを持ちます。
+
+## 3. モデル関連図
+
+以下は、モデル間の関連を示すブロック図です。
+
+```mermaid
+classDiagram
+    class Order {
+        +Integer id
+        +String item_code
+        +Integer quantity
+        +Boolean allocated
+        +relationship allocation_results
+    }
+    class Inventory {
+        +Integer id
+        +String item_code
+        +Integer quantity
+        +Date receipt_date
+        +Float unit_price
+        +DateTime created_at
+    }
+    class AllocationResult {
+        +Integer id
+        +Integer order_id
+        +String item_code
+        +Integer allocated_quantity
+        +Float allocated_price
+        +Date allocation_date
+        +relationship order
+    }
+    Order "1" -- "*" AllocationResult : has
+```
+
+## 4. テーブル定義
+
+以下は、各モデルに対応するテーブル定義です。
+
+### 4.1 orders
+
+| カラム名 | データ型 | 制約 |
+|----------|----------|------|
+| id | Integer | PRIMARY KEY |
+| item_code | String | INDEX |
+| quantity | Integer | |
+| allocated | Boolean | DEFAULT False |
+
+### 4.2 inventories
+
+| カラム名 | データ型 | 制約 |
+|------------|----------|------|
+| id | Integer | PRIMARY KEY |
+| item_code | String | INDEX |
+| quantity | Integer | |
+| receipt_date | Date | |
+| unit_price | Float | |
+| created_at | DateTime | DEFAULT CURRENT_TIMESTAMP |
+
+### 4.3 allocation_results
+
+| カラム名 | データ型 | 制約 |
+|------------------|----------|------|
+| id | Integer | PRIMARY KEY |
+| order_id | Integer | FOREIGN KEY (orders.id) |
+| item_code | String | INDEX |
+| allocated_quantity | Integer | |
+| allocated_price | Float | |
+| allocation_date | Date | |
+
+## 5. 結論
+
+本設計書では、在庫管理システムで使用されるSQLAlchemyモデルについて説明しました。これらのモデルは、データベースのテーブル構造を定義し、データの永続化と取得を行います。モデル間の関連を示すブロック図とテーブル定義も提供しました。これらのモデルを使用することで、データベースとのやり取りを円滑に行うことができます。
+
+
+# データベース設定設計書
+
+## 1. 概要
+
+本設計書は、在庫管理システムのデータベース設定について説明します。データベースとの接続、セッションの作成、および環境に応じた設定の切り替えを行います。
+
+## 2. 環境設定
+
+### 2.1 環境変数
+
+- `ENVIRONMENT`: 実行環境を指定する環境変数。デフォルトは "production"。
+
+### 2.2 ローカル環境
+
+ローカル環境では、以下の設定が適用されます。
+
+- `SQLALCHEMY_DATABASE_URL`: "sqlite:///:memory:" を使用してインメモリSQLiteデータベースに接続します。
+- `TestingSessionLocal`: SQLAlchemyのセッションメーカーを作成し、自動コミットと自動フラッシュを無効にします。
+
+### 2.3 本番環境
+
+本番環境では、以下の環境変数を使用してPostgreSQLデータベースに接続します。
+
+- `DB_HOST`: データベースのホスト名
+- `DB_PORT`: データベースのポート番号
+- `DB_NAME`: データベース名
+- `DB_USER`: データベースユーザー名
+- `DB_PASSWORD`: データベースパスワード
+
+これらの環境変数を使用して、`SQLALCHEMY_DATABASE_URL`を構築します。
+
+## 3. データベース接続
+
+### 3.1 エンジンの作成
+
+`create_engine`関数を使用して、データベースエンジンを作成します。環境に応じて、適切な`SQLALCHEMY_DATABASE_URL`を使用します。
+
+### 3.2 セッションの作成
+
+`sessionmaker`関数を使用して、データベースセッションのファクトリを作成します。`autocommit`と`autoflush`を`False`に設定し、作成したエンジンをバインドします。
+
+## 4. 依存関係
+
+### 4.1 get_db
+
+`get_db`関数は、データベースセッションを提供するための依存関係です。セッションを作成し、`yield`を使用してセッションを返します。最後に、セッションを適切にクローズします。
+
+## 5. ベースモデル
+
+`declarative_base`関数を使用して、SQLAlchemyのベースモデルを作成します。このベースモデルを継承することで、各モデルクラスを定義できます。
+
+## 6. フロー図
+
+以下は、データベース設定のフロー図です。
+
+```mermaid
+graph TD
+    A[環境変数の取得] --> B{環境の判定}
+    B -->|ローカル環境| C[SQLiteインメモリデータベースの設定]
+    B -->|本番環境| D[PostgreSQLデータベースの設定]
+    C --> E[エンジンの作成]
     D --> E
-    E --> G[Database]
+    E --> F[セッションの作成]
+    F --> G[ベースモデルの作成]
+    G --> H[モデルの定義]
+    H --> I[依存関係の定義]
+    I --> J[アプリケーションの実行]
 ```
 
-    1. フロントエンド（Frontend）:
-     - ユーザーインターフェースを提供し、ユーザーの操作を処理します。
-     - バックエンドのAPIと通信して、データの送受信を行います。
+## 7. 結論
 
-    2. API (main.py):
-     - FastAPIを使用して実装されたWebAPIアプリケーションのメインエントリーポイントです。
-     - 受信したリクエストを処理し、適切なレスポンスを返します。
-     - 他のモジュール（`allocation.py`, `models.py`, `database.py`, `schemas.py`）と連携して、必要な処理を行います。
-
-    3. allocation.py:
-    - 在庫引当ロジックを実装したモジュールです。
-    - 引当方法（FIFO、LIFO、平均法など）に基づいて、在庫の引当を行います。
-    - `models.py`と`database.py`を使用して、必要なデータの取得と保存を行います。
-
-    4. models.py:
-    - データベースのテーブルに対応するデータモデルを定義するモジュールです。
-    - SQLAlchemyを使用して、データベースとのマッピングを行います。
-    - `database.py`と連携して、データベースとのやり取りを行います。
-
-    5. database.py:
-    - データベース接続とセッション管理を行うモジュールです。
-    - SQLAlchemyを使用して、データベースとの接続を確立し、セッションを管理します。
-    - `models.py`と連携して、データベースとのやり取りを行います。
-
-    6. schemas.py:
-    - APIのリクエストとレスポンスのデータ構造を定義するモジュールです。
-    - Pydanticを使用して、データの検証とシリアライズ/デシリアライズを行います。
-    - APIとのデータのやり取りに使用されます。
-
-    7. Database:
-    - アプリケーションのデータを永続的に保存するためのデータベースです。
-    - PostgreSQLが使用されます。
-    - `database.py`を介してアプリケーションとやり取りします。
-
-これらのコンポーネントが連携して、在庫管理システムの在庫引当機能を提供します。フロントエンドからのリクエストがAPIに送信され、APIは適切なモジュールと連携して処理を行います。`allocation.py`は在庫引当ロジックを実装し、`models.py`と`database.py`を使用してデータベースとのやり取りを行います。`schemas.py`は、APIとのデータのやり取りに使用されます。
+本設計書では、在庫管理システムのデータベース設定について説明しました。環境に応じてデータベースの設定を切り替え、SQLAlchemyを使用してデータベース接続とセッション管理を行います。また、依存関係の注入を使用して、データベースセッションをアプリケーション内で利用できるようにしています。フロー図を用いて、データベース設定の流れを視覚的に表現しました。
 
 
-### 8. シーケンス図
-このシーケンス図は、利用者とシステム内の各コンポーネント間のやり取りを示しています。
+# AWS Cognito設定設計書
 
-1. 利用者は、Mainを介して認証を行います。Mainは、Schemasを使用してトークンのペイロードを検証し、認証結果を利用者に返します。
+## 1. 概要
 
-2. 利用者は、Mainを介して注文を作成します。Mainは、Schemasを使用して注文リクエストを検証し、Modelsを使用して注文オブジェクトを作成します。注文はDatabaseに保存され、レスポンスが利用者に返されます。
+本設計書は、在庫管理システムにおけるAWS Cognitoの設定情報について説明します。AWS Cognitoは、ユーザー認証と認可を提供するマネージドサービスであり、システムのセキュリティを強化するために使用されます。
 
-3. 利用者は、Mainを介して在庫を作成します。Mainは、Schemasを使用して在庫リクエストを検証し、Modelsを使用して在庫オブジェクトを作成します。在庫はDatabaseに保存され、レスポンスが利用者に返されます。
+## 2. 設定情報
 
-4. 利用者は、Mainを介して在庫の割り当てを行います。Mainは、Schemasを使用して割り当てリクエストを検証し、Allocationを呼び出して在庫の割り当てを行います。Allocationは、Modelsを使用して注文と在庫を取得し、割り当て結果を作成します。割り当て結果はDatabaseに保存され、Schemasを使用してシリアライズされ、レスポンスが利用者に返されます。
+### 2.1 COGNITO_JWKS_URL
 
-5. 利用者は、Mainを介して注文を取得します。Mainは、Modelsを使用して注文を取得し、Schemasを使用してシリアライズされた注文をレスポンスとして利用者に返します。
+`COGNITO_JWKS_URL`は、AWS CognitoのJWKS（JSON Web Key Set）のURLを指定します。JWKSは、トークンの署名検証に使用される公開鍵の情報を含んでいます。
 
-6. 利用者は、Mainを介して在庫を取得します。Mainは、Modelsを使用して在庫を取得し、Schemasを使用してシリアライズされた在庫をレスポンスとして利用者に返します。
-
-このシーケンス図は、システムの各コンポーネントがどのように相互作用するかを示しています。利用者とMainの間でリクエストとレスポンスのやり取りが行われ、Mainは他のコンポーネントと連携して必要な処理を行います。
-
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Main
-    participant Allocation
-    participant Models
-    participant Database
-    participant Schemas
-
-    User->>Main: Authenticate
-    Main->>Schemas: Validate token payload
-    Main->>User: Authentication result
-
-    User->>Main: Create order
-    Main->>Schemas: Validate order request
-    Main->>Models: Create order object
-    Models->>Database: Save order
-    Database->>Main: Order created
-    Main->>User: Order response
-
-    User->>Main: Create inventory
-    Main->>Schemas: Validate inventory request
-    Main->>Models: Create inventory object
-    Models->>Database: Save inventory
-    Database->>Main: Inventory created
-    Main->>User: Inventory response
-
-    User->>Main: Allocate inventory
-    Main->>Schemas: Validate allocation request
-    Main->>Allocation: Allocate inventory
-    Allocation->>Models: Get orders and inventories
-    Models->>Database: Retrieve orders and inventories
-    Database->>Models: Orders and inventories
-    Models->>Allocation: Orders and inventories
-    Allocation->>Models: Create allocation results
-    Models->>Database: Save allocation results
-    Database->>Allocation: Allocation results saved
-    Allocation->>Main: Allocation results
-    Main->>Schemas: Serialize allocation results
-    Schemas->>Main: Serialized allocation results
-    Main->>User: Allocation response
-
-    User->>Main: Get orders
-    Main->>Models: Retrieve orders
-    Models->>Database: Retrieve orders
-    Database->>Models: Orders
-    Models->>Schemas: Serialize orders
-    Schemas->>Main: Serialized orders
-    Main->>User: Orders response
-
-    User->>Main: Get inventories
-    Main->>Models: Retrieve inventories
-    Models->>Database: Retrieve inventories
-    Database->>Models: Inventories
-    Models->>Schemas: Serialize inventories
-    Schemas->>Main: Serialized inventories
-    Main->>User: Inventories response
-```
-
-### 9. エラーハンドリング
-   - APIリクエストのバリデーションエラー：400 Bad Request
-   - 受注データ、在庫データが見つからない場合：404 Not Found
-   - サーバー内部エラー：500 Internal Server Error
-
-### 10. セキュリティ
-AWS Cognitoを利用して、APIエンドポイントへのアクセス時にユーザー認証を実施する。
-API Gatewayにカスタム認可者を設定し、AWS Cognitoのユーザープールとの連携を行う。
-ユーザーがAPIにアクセスする際は、まずAWS Cognitoでユーザー認証を行い、有効なJWTトークンを取得する必要がある。
-API Gatewayは、リクエストヘッダーに含まれるJWTトークンを検証し、有効な場合にのみAPIエンドポイントへのアクセスを許可する。
-JWTトークンには、ユーザーの識別情報や権限情報を含め、細粒度のアクセス制御を行う。
-データベースへのアクセスはIAMロールで制限し、最小権限の原則に従ってアクセス権を設定する。
-これにより、APIエンドポイントへのアクセスにはユーザー認証が必要となり、認証されたユーザーのみがAPIを利用できるようになります。また、JWTトークンを使用することで、ユーザーの識別情報や権限情報に基づいたアクセス制御が可能になります。
-
-AWS Cognitoとの連携には、以下の手順が必要です。
-
-AWS Cognitoでユーザープールを作成し、アプリクライアントを設定する。
-API Gatewayにカスタム認可者を設定し、AWS Cognitoのユーザープールとの連携を行う。
-アプリケーションでは、AWS Cognitoのユーザープールに対してユーザー登録とログインを行い、JWTトークンを取得する。
-APIリクエストを送信する際は、取得したJWTトークンをリクエストヘッダーに含めて送信する。
-API Gatewayは、リクエストヘッダーに含まれるJWTトークンを検証し、有効な場合にのみAPIエンドポイントへのアクセスを許可する。
-
-### 11. テスト
-   - ユニットテスト：各機能の単体テストを実施する。
-   - 統合テスト：APIエンドポイントの統合テストを実施する。
-   - テストデータ：テスト用の受注データ、在庫データ、商品マスタデータを準備する。
-
-### 12. デプロイ
-    - AWS Serverless Application Model（SAM）を使用してデプロイを管理する。
-    - AWS CodePipelineとAWS CodeBuildを使用してCI/CDパイプラインを構築する。
-
-### 13. 外部ライブラリ
-    - FastAPI：APIフレームワーク
-    - SQLAlchemy：ORMライブラリ
-    - PyJWT：JWTトークンの生成と検証
-    - pytest：テストフレームワーク
-
-以上が、在庫管理システムの在庫引当機能を提供するWebAPIアプリケーションのプログラム仕様書です。本仕様書に基づいて、詳細な実装を進めていきます。
-
-
-## 2.プログラム
-
-main.pyファイルは、APIの中心的な役割を果たしています。認証、エンドポイントの定義、データベース操作、エラー処理、ログ出力などの機能を提供し、アプリケーションの全体的な動作を制御しています
-1.インポートとアプリケーションの初期化：
-    - 必要なモジュールとクラスをインポートしています。
-    - FastAPIアプリケーションを作成し、app変数に割り当てています。
-    - 認証スキームとしてHTTPBearerを使用しています。
-2.ロガーの設定：
-    - loggingモジュールを使用してロガーを設定しています。
-    - ログレベルをINFOに設定し、ログメッセージのフォーマットを指定しています。
-3.認証ミドルウェア：
-    - authenticate_user関数は、JWTトークンを検証し、ユーザーを認証します。
-    - トークンが有効な場合、TokenPayloadインスタンスを返します。
-    - トークンが無効な場合、HTTPExceptionを発生させます。
-4.APIエンドポイント：
-    - /ordersエンドポイント：注文の作成と取得を処理します。
-    - /inventoriesエンドポイント：在庫の作成と取得を処理します。
-    - /allocateエンドポイント：在庫の割り当てを処理します。
-    - /allocation-resultsエンドポイント：割り当て結果の取得を処理します。
-5.エラー処理とログ出力：
-    - 各エンドポイントでは、処理をtryブロックで囲み、例外が発生した場合のエラー処理を行っています。
-    - エラーが発生した場合、適切なHTTPExceptionを発生させ、エラーメッセージをログに記録します。
-    - 処理が正常に完了した場合、関連する情報をログに出力します。
-6.データベース操作：
-    - get_db関数を使用して、データベースセッションを取得します。
-    - 各エンドポイントでは、データベースセッションを使用してデータベース操作を実行します。
-    - エラーが発生した場合、データベースのロールバックを行います。
-7.依存関係の注入：
-    - Dependsを使用して、エンドポイントの依存関係を注入しています。
-    - 認証ミドルウェアとデータベースセッションは、各エンドポイントで自動的に解決されます。
-    - このmain.pyファイルは、APIの中心的な役割を果たしています。認証、エンドポイントの定義、データベース操作、エラー処理、ログ出力などの機能を提供し、アプリケーションの全体的な動作を制御しています。
-
-ブロック図
-このブロック図では、main.pyの主要なコンポーネントとその関連性を示しています。
-
-    - FastAPI: FastAPIアプリケーションを表します。
-    - Authentication: 認証ミドルウェアを表します。
-    - Endpoints: 各APIエンドポイントを表します。
-    - Database: データベース依存関係を表します。
-認証ミドルウェアは、すべてのAPIエンドポイントに適用されます。各APIエンドポイントは、データベース依存関係を使用してデータベースとやり取りします。
-```mermaid
-graph LR
-    subgraph FastAPI
-        app[FastAPI App]
-    end
-
-    subgraph Authentication
-        auth[Authentication Middleware]
-    end
-
-    subgraph Endpoints
-        orders[Orders Endpoint]
-        inventories[Inventories Endpoint]
-        allocate[Allocate Endpoint]
-        allocation_results[Allocation Results Endpoint]
-    end
-
-    subgraph Database
-        db[Database Dependency]
-    end
-
-    app --> auth
-    auth --> orders
-    auth --> inventories
-    auth --> allocate
-    auth --> allocation_results
-
-    orders --> db
-    inventories --> db
-    allocate --> db
-    allocation_results --> db
+URLの形式は以下のようになります：
 
 ```
+https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/jwks.json
+```
 
+- `<region>`: AWS Cognitoユーザープールが存在するリージョン
+- `<user-pool-id>`: AWS Cognitoユーザープールの一意の識別子
 
-`main.py`：
+### 2.2 COGNITO_AUDIENCE
+
+`COGNITO_AUDIENCE`は、AWS Cognitoユーザープールクライアントの一意の識別子を指定します。この識別子は、トークンの検証時にオーディエンス（aud）クレームと照合されます。
+
+### 2.3 COGNITO_ISSUER
+
+`COGNITO_ISSUER`は、AWS Cognitoユーザープールの発行者（issuer）URLを指定します。この値は、トークンの検証時に発行者（iss）クレームと照合されます。
+
+URLの形式は以下のようになります：
+
+```
+https://cognito-idp.<region>.amazonaws.com/<user-pool-id>
+```
+
+- `<region>`: AWS Cognitoユーザープールが存在するリージョン
+- `<user-pool-id>`: AWS Cognitoユーザープールの一意の識別子
+
+## 3. 設定の適用
+
+これらの設定情報は、アプリケーション内でトークンの検証と認可に使用されます。以下は、設定情報の適用例です：
+
 ```python
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-from sqlalchemy.orm import Session
-from schemas import TokenPayload, OrderRequest, InventoryRequest, AllocationRequest
-from models import Order, Inventory, AllocationResult
-from database import get_db
-from allocation import allocate_inventory
-from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
-import logging
 
-app = FastAPI()
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-auth_scheme = HTTPBearer()
-
-# ロガーの設定
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
-
-async def authenticate_user(auth_token: str = Depends(auth_scheme)):
+async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(auth_token.credentials, COGNITO_JWKS_URL, audience=COGNITO_AUDIENCE, issuer=COGNITO_ISSUER)
-        token_data = TokenPayload(**payload)
-        return token_data
-    except JWTError as e:
-        logger.error(f"Invalid authentication token: {e}")
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
-
-@app.post("/orders", dependencies=[Depends(authenticate_user)])
-def create_order(order: OrderRequest, db: Session = Depends(get_db)):
-    try:
-        db_order = Order(item_code=order.item_code, quantity=order.quantity)
-        db.add(db_order)
-        db.commit()
-        db.refresh(db_order)
-        logger.info(f"Order created: {db_order}")
-        return db_order
-    except Exception as e:
-        logger.error(f"Error creating order: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@app.get("/orders", dependencies=[Depends(authenticate_user)])
-def get_orders(db: Session = Depends(get_db)):
-    try:
-        orders = db.query(Order).all()
-        logger.info(f"Retrieved {len(orders)} orders")
-        return orders
-    except Exception as e:
-        logger.error(f"Error retrieving orders: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@app.post("/inventories", dependencies=[Depends(authenticate_user)])
-def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
-    try:
-        db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
-        db.add(db_inventory)
-        db.commit()
-        db.refresh(db_inventory)
-        logger.info(f"Inventory created: {db_inventory}")
-        return db_inventory
-    except Exception as e:
-        logger.error(f"Error creating inventory: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@app.get("/inventories", dependencies=[Depends(authenticate_user)])
-def get_inventories(db: Session = Depends(get_db)):
-    try:
-        inventories = db.query(Inventory).all()
-        logger.info(f"Retrieved {len(inventories)} inventories")
-        return inventories
-    except Exception as e:
-        logger.error(f"Error retrieving inventories: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@app.post("/allocate", dependencies=[Depends(authenticate_user)])
-def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
-    try:
-        allocation_result = allocate_inventory(allocation.order_id, allocation.item_code, allocation.quantity, db)
-        logger.info(f"Allocation completed: {allocation_result}")
-        return allocation_result
-    except Exception as e:
-        logger.error(f"Error allocating inventory: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-@app.get("/allocation-results", dependencies=[Depends(authenticate_user)])
-def get_allocation_results(db: Session = Depends(get_db)):
-    try:
-        allocation_results = db.query(AllocationResult).all()
-        logger.info(f"Retrieved {len(allocation_results)} allocation results")
-        return allocation_results
-    except Exception as e:
-        logger.error(f"Error retrieving allocation results: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        payload = jwt.decode(token, COGNITO_JWKS_URL, audience=COGNITO_AUDIENCE, issuer=COGNITO_ISSUER)
+        username = payload.get("cognito:username")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 ```
 
-`allocation.py`は、在庫引当処理のロジックを実装する在庫引当プログラムです。このプログラムは、受注データと在庫データに基づいて、指定された引当方法を使用して在庫の引当を行います。
-主な処理の流れは以下の通りです：
-1. `allocate_inventory`関数が呼び出され、データベースセッションと引当方法が渡されます。
-2. 受注データと在庫データをデータベースから取得します。
-3. 各受注に対して、指定された引当方法に基づいて在庫の引当を行います。引当方法には、先入先出法（FIFO）、後入先出法（LIFO）、平均法、個別法、総平均法、移動平均法があります。
-4. 引当処理では、受注の数量に対して、在庫から必要な数量を割り当てます。割り当てられた数量と金額は、`allocated_quantity`と`allocated_price`に記録されます。
-5. 引当処理中に、在庫の数量が不足する場合は、可能な限り割り当てを行い、残りの数量は未割当のままとなります。
-6. 引当処理が完了した後、引当結果を`AllocationResult`オブジェクトとして作成し、`allocation_results`リストに追加します。
-7. 引当処理中に例外が発生した場合は、エラーメッセージをログに出力し、例外を再度発生させます。
-8. 全ての受注に対する引当処理が完了した後、`allocation_results`リストに格納された引当結果をデータベースに一括で保存します。
-9. 最後に、引当結果のリストを返します。
-`allocation.py`では、引当方法ごとに異なるロジックが実装されています。各引当方法は、在庫の割当方法や計算方法が異なります。
-また、このプログラムではログ出力も行われます。引当処理が正常に完了した場合は、引当結果の詳細をログに出力します。引当処理中にエラーが発生した場合は、エラーメッセージをログに出力します。
-`allocation.py`は、在庫引当処理の中核となるロジックを提供し、受注データと在庫データに基づいて適切な在庫の割当を行います。このプログラムは、`main.py`から呼び出され、在庫引当機能を実現するために使用されます。
-```mermaid
-graph TD
-    A[Receive Allocation Request] --> B[Get Orders and Inventories]
-    B --> C{Allocation Method}
-    C --> |FIFO| D[Perform FIFO Allocation]
-    C --> |LIFO| E[Perform LIFO Allocation]
-    C --> |Average| F[Perform Average Allocation]
-    C --> |Specific| G[Perform Specific Allocation]
-    C --> |Total Average| H[Perform Total Average Allocation]
-    C --> |Moving Average| I[Perform Moving Average Allocation]
-    D --> J[Create Allocation Results]
-    E --> J
-    F --> J
-    G --> J
-    H --> J
-    I --> J
-    J --> K[Save Allocation Results]
-    K --> L[Return Allocation Results]
-```
+上記の例では、`OAuth2PasswordBearer`を使用してトークンを取得し、`jwt.decode`関数を使用してトークンを検証しています。検証には、`COGNITO_JWKS_URL`、`COGNITO_AUDIENCE`、`COGNITO_ISSUER`の設定情報が使用されます。
 
-この`allocation.py`ファイルは、在庫の割り当てロジックを実装しています。
+## 4. 結論
 
-主要な部分を説明します：
+本設計書では、在庫管理システムにおけるAWS Cognitoの設定情報について説明しました。`COGNITO_JWKS_URL`、`COGNITO_AUDIENCE`、`COGNITO_ISSUER`の設定情報を適切に定義することで、AWS Cognitoを使用したユーザー認証と認可を実現できます。これらの設定情報は、トークンの検証と認可に使用され、システムのセキュリティを強化します。
 
-1. インポートとロガーの設定：
-   - 必要なモジュールとクラスをインポートしています。
-   - `logging`モジュールを使用してロガーを設定し、ログレベルとフォーマットを指定しています。
 
-2. `allocate_inventory`関数：
-   - この関数は、指定された割り当て方法に基づいて在庫を注文に割り当てます。
-   - 引数として、データベースセッション（`db`）と割り当て方法（`allocation_method`）を受け取ります。
+# データベース接続設定設計書
 
-3. 割り当て方法の実装：
-   - 関数内では、指定された割り当て方法に応じて、在庫を注文に割り当てるロジックが実装されています。
-   - 以下の割り当て方法が利用可能です：
-     - "FIFO"：先入先出法に基づいて在庫を割り当てます。
-     - "LIFO"：後入先出法に基づいて在庫を割り当てます。
-     - "AVERAGE"：平均価格に基づいて在庫を割り当てます。
-     - "SPECIFIC"：特定の在庫アイテムを割り当てます。
-     - "TOTAL_AVERAGE"：全ての在庫の平均価格に基づいて割り当てます。
-     - "MOVING_AVERAGE"：移動平均価格に基づいて割り当てます。
+## 1. 概要
 
-4. 割り当て結果の保存：
-   - 割り当てが完了すると、`AllocationResult`オブジェクトが作成され、割り当て結果のリストに追加されます。
-   - 割り当て結果には、注文ID、商品コード、割り当て数量、割り当て価格、割り当て日付が含まれます。
+本設計書は、在庫管理システムにおけるデータベース接続の設定情報について説明します。これらの設定情報は、システムがデータベースに接続するために必要な詳細を提供します。
 
-5. エラー処理とログ出力：
-   - 割り当て処理中に例外が発生した場合、エラーメッセージをログに記録し、例外を再度発生させます。
-   - 割り当てが正常に完了した場合、割り当て結果の詳細をログに出力します。
+## 2. 設定情報
 
-6. データベースへの保存とコミット：
-   - 割り当て結果のリストを`bulk_save_objects`メソッドを使用してデータベースに一括保存します。
-   - `commit`メソッドを呼び出して、変更をデータベースにコミットします。
+### 2.1 DB_HOST
 
-7. 割り当て結果の返却：
-   - 割り当て結果のリストを呼び出し元に返却します。
+`DB_HOST`は、データベースサーバーのホスト名またはIPアドレスを指定します。この設定では、データベースサーバーがローカルホスト（`localhost`）上で実行されていることを示しています。
 
-この`allocation.py`ファイルは、在庫割り当てのコアロジックを提供します。異なる割り当て方法を実装し、注文に対して在庫を割り当てます。割り当て結果はデータベースに保存され、ログに記録されます。このファイルは、`main.py`から呼び出され、在庫割り当てプロセスの中心的な役割を果たします。
+### 2.2 DB_PORT
 
-`allocation.py`：
-```python
-from sqlalchemy.orm import Session
-from models import Order, Inventory, AllocationResult
-from datetime import datetime
-import logging
+`DB_PORT`は、データベースサーバーが受信しているポート番号を指定します。この設定では、ポート番号は`5432`に設定されています。これは、PostgreSQLのデフォルトのポート番号です。
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+### 2.3 DB_NAME
 
-handler = logging.StreamHandler()
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+`DB_NAME`は、接続するデータベースの名前を指定します。この設定では、データベース名は`testdb`に設定されています。
 
-def allocate_inventory(db: Session, allocation_method: str):
-    orders = db.query(Order).all()
-    inventories = db.query(Inventory).all()
-    
-    allocation_results = []
-    
-    for order in orders:
-        allocated_quantity = 0
-        allocated_price = 0
-        
-        try:
-            if allocation_method == "FIFO":
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code and inventory.quantity > 0:
-                        if inventory.quantity >= order.quantity - allocated_quantity:
-                            allocated_quantity += order.quantity - allocated_quantity
-                            allocated_price += (order.quantity - allocated_quantity) * inventory.unit_price
-                            inventory.quantity -= order.quantity - allocated_quantity
-                        else:
-                            allocated_quantity += inventory.quantity
-                            allocated_price += inventory.quantity * inventory.unit_price
-                            inventory.quantity = 0
-                        
-                        if allocated_quantity == order.quantity:
-                            break
-            
-            elif allocation_method == "LIFO":
-                for inventory in reversed(inventories):
-                    if inventory.item_code == order.item_code and inventory.quantity > 0:
-                        if inventory.quantity >= order.quantity - allocated_quantity:
-                            allocated_quantity += order.quantity - allocated_quantity
-                            allocated_price += (order.quantity - allocated_quantity) * inventory.unit_price
-                            inventory.quantity -= order.quantity - allocated_quantity
-                        else:
-                            allocated_quantity += inventory.quantity
-                            allocated_price += inventory.quantity * inventory.unit_price
-                            inventory.quantity = 0
-                        
-                        if allocated_quantity == order.quantity:
-                            break
-            
-            elif allocation_method == "AVERAGE":
-                total_quantity = sum(inventory.quantity for inventory in inventories if inventory.item_code == order.item_code)
-                total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories if inventory.item_code == order.item_code)
-                
-                if total_quantity >= order.quantity:
-                    average_price = total_price / total_quantity
-                    allocated_quantity = order.quantity
-                    allocated_price = order.quantity * average_price
-                    
-                    for inventory in inventories:
-                        if inventory.item_code == order.item_code:
-                            if inventory.quantity >= order.quantity:
-                                inventory.quantity -= order.quantity
-                                order.quantity = 0
-                            else:
-                                order.quantity -= inventory.quantity
-                                inventory.quantity = 0
-                            
-                            if order.quantity == 0:
-                                break
-            
-            elif allocation_method == "SPECIFIC":
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code and inventory.quantity >= order.quantity:
-                        allocated_quantity = order.quantity
-                        allocated_price = order.quantity * inventory.unit_price
-                        inventory.quantity -= order.quantity
-                        break
-            
-            elif allocation_method == "TOTAL_AVERAGE":
-                total_quantity = sum(inventory.quantity for inventory in inventories)
-                total_price = sum(inventory.quantity * inventory.unit_price for inventory in inventories)
-                
-                if total_quantity >= order.quantity:
-                    average_price = total_price / total_quantity
-                    allocated_quantity = order.quantity
-                    allocated_price = order.quantity * average_price
-                    
-                    for inventory in inventories:
-                        if inventory.quantity >= order.quantity:
-                            inventory.quantity -= order.quantity
-                            order.quantity = 0
-                        else:
-                            order.quantity -= inventory.quantity
-                            inventory.quantity = 0
-                        
-                        if order.quantity == 0:
-                            break
-            
-            elif allocation_method == "MOVING_AVERAGE":
-                total_quantity = 0
-                total_price = 0
-                
-                for inventory in inventories:
-                    if inventory.item_code == order.item_code:
-                        total_quantity += inventory.quantity
-                        total_price += inventory.quantity * inventory.unit_price
-                        
-                        if total_quantity >= order.quantity:
-                            average_price = total_price / total_quantity
-                            allocated_quantity = order.quantity
-                            allocated_price = order.quantity * average_price
-                            
-                            inventory.quantity -= order.quantity
-                            break
-            
-            else:
-                raise ValueError("Invalid allocation method")
-            
-            allocation_result = AllocationResult(
-                order_id=order.order_id,
-                item_code=order.item_code,
-                allocated_quantity=allocated_quantity,
-                allocated_price=allocated_price,
-                allocation_date=datetime.now().date()
-            )
-            
-            allocation_results.append(allocation_result)
-            
-            logger.info(f"Allocation completed for order {order.order_id}. Allocated quantity: {allocated_quantity}, Allocated price: {allocated_price}")
-        
-        except Exception as e:
-            logger.error(f"Error during allocation for order {order.order_id}: {str(e)}")
-            raise
-    
-    db.bulk_save_objects(allocation_results)
-    db.commit()
-    
-    return allocation_results
-```
+### 2.4 DB_USER
 
-この`models.py`ファイルは、SQLAlchemyを使用してデータベースのテーブル構造を定義しています。
-1. インポート：
-   - `sqlalchemy`モジュールから必要なクラスをインポートしています。
-   - `database`モジュールから`Base`クラスをインポートしています。
+`DB_USER`は、データベースに接続するためのユーザー名を指定します。この設定では、ユーザー名は`testuser`に設定されています。
 
-2. `Order`クラス：
-   - 注文情報を表すテーブルを定義しています。
-   - `__tablename__`属性で、テーブル名を指定しています。
-   - 以下のカラムを定義しています：
-     - `order_id`：注文IDを表す主キーカラム（文字列型）
-     - `item_code`：商品コードを表すカラム（文字列型）
-     - `quantity`：数量を表すカラム（整数型）
-   - `allocation_results`属性で、`AllocationResult`クラスとのリレーションシップを定義しています。
+### 2.5 DB_PASSWORD
 
-3. `Inventory`クラス：
-   - 在庫情報を表すテーブルを定義しています。
-   - `__tablename__`属性で、テーブル名を指定しています。
-   - 以下のカラムを定義しています：
-     - `id`：在庫IDを表す主キーカラム（整数型）
-     - `item_code`：商品コードを表すカラム（文字列型）
-     - `quantity`：数量を表すカラム（整数型）
-     - `receipt_date`：入荷日を表すカラム（日付型）
-     - `unit_price`：単価を表すカラム（浮動小数点型）
+`DB_PASSWORD`は、データベースに接続するためのパスワードを指定します。この設定では、パスワードは`testpassword`に設定されています。
 
-4. `AllocationResult`クラス：
-   - 割り当て結果情報を表すテーブルを定義しています。
-   - `__tablename__`属性で、テーブル名を指定しています。
-   - 以下のカラムを定義しています：
-     - `id`：割り当て結果IDを表す主キーカラム（整数型）
-     - `order_id`：注文IDを表す外部キーカラム（文字列型）
-     - `item_code`：商品コードを表すカラム（文字列型）
-     - `allocated_quantity`：割り当て数量を表すカラム（整数型）
-     - `allocated_price`：割り当て価格を表すカラム（浮動小数点型）
-     - `allocation_date`：割り当て日付を表すカラム（日付型）
-   - `order`属性で、`Order`クラスとのリレーションシップを定義しています。
+## 3. 設定の適用
 
-この`models.py`ファイルは、アプリケーションで使用されるデータベースのテーブル構造を定義しています。`Order`クラスは注文情報を、`Inventory`クラスは在庫情報を、`AllocationResult`クラスは割り当て結果情報を表しています。これらのクラスは、SQLAlchemyのORM（Object-Relational Mapping）機能を利用して、Pythonのオブジェクトとデータベースのテーブル間のマッピングを行います。
-
-```mermaid
-graph TD
-    A[Define Order Model] --> B[Define Inventory Model]
-    B --> C[Define Allocation Result Model]
-```
+これらの設定情報は、データベース接続文字列の構築に使用されます。以下は、設定情報を使用してデータベース接続文字列を構築する例です：
 
 ```python
-from sqlalchemy import Column, Integer, String, Date, Float, ForeignKey
-from sqlalchemy.orm import relationship
-from database import Base
-
-class Order(Base):
-    __tablename__ = "orders"
-
-    order_id = Column(String, primary_key=True, index=True)
-    item_code = Column(String, index=True)
-    quantity = Column(Integer)
-
-    allocation_results = relationship("AllocationResult", back_populates="order")
-
-class Inventory(Base):
-    __tablename__ = "inventories"
-
-    id = Column(Integer, primary_key=True, index=True)
-    item_code = Column(String, index=True)
-    quantity = Column(Integer)
-    receipt_date = Column(Date)
-    unit_price = Column(Float)
-
-class AllocationResult(Base):
-    __tablename__ = "allocation_results"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(String, ForeignKey("orders.order_id"))
-    item_code = Column(String, index=True)
-    allocated_quantity = Column(Integer)
-    allocated_price = Column(Float)
-    allocation_date = Column(Date)
-
-    order = relationship("Order", back_populates="allocation_results")
-```
-
-
-`database.py`ファイルは、データベース接続の設定と初期化を行っています。
-
-主要な部分を説明します：
-
-1. インポート：
-   - `sqlalchemy`モジュールから必要なクラスをインポートしています。
-   - `os`モジュールをインポートしています。
-
-2. 環境変数の取得：
-   - `os.environ.get()`を使用して、環境変数からデータベース接続情報を取得しています。
-   - 以下の環境変数が使用されています：
-     - `DB_HOST`：データベースのホスト名
-     - `DB_PORT`：データベースのポート番号
-     - `DB_NAME`：データベース名
-     - `DB_USER`：データベースのユーザー名
-     - `DB_PASSWORD`：データベースのパスワード
-
-3. データベース接続URLの作成：
-   - 取得した環境変数を使用して、SQLAlchemyのデータベース接続URLを作成しています。
-   - URLの形式は、`postgresql://ユーザー名:パスワード@ホスト名:ポート番号/データベース名`です。
-
-4. エンジンの作成：
-   - `create_engine()`関数を使用して、データベースエンジンを作成しています。
-   - エンジンは、データベースとの接続を管理するためのオブジェクトです。
-
-5. セッションの作成：
-   - `sessionmaker()`関数を使用して、セッションファクトリを作成しています。
-   - セッションファクトリは、データベースとのセッションを作成するためのオブジェクトです。
-   - `autocommit`と`autoflush`をFalseに設定し、エンジンをバインドしています。
-
-6. ベースクラスの作成：
-   - `declarative_base()`関数を使用して、SQLAlchemyのベースクラスを作成しています。
-   - ベースクラスは、モデルクラスの基底クラスとして使用されます。
-
-この`database.py`ファイルは、データベース接続の設定と初期化を行うための中心的な役割を果たしています。環境変数からデータベース接続情報を取得し、SQLAlchemyのエンジンとセッションを作成します。また、SQLAlchemyのベースクラスを提供し、モデルクラスの基底クラスとして使用されます。
-
-他のファイルでは、この`database.py`ファイルから必要なオブジェクトをインポートして使用します。例えば、`models.py`ファイルでは`Base`クラスを継承してモデルクラスを定義し、`main.py`ファイルでは`SessionLocal`を使用してデータベースセッションを取得します。
-```mermaid
-graph TD
-    A[Create Database Connection] --> B[Create Database Session]
-    B --> C[Define CRUD Operations]
-    C --> |Create| D[Insert Record]
-    C --> |Read| E[Query Records]
-    C --> |Update| F[Update Record]
-    C --> |Delete| G[Delete Record]
-```
-
-
-`database.py`：
-```python
-from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-import os
-
-DB_HOST = os.environ.get("DB_HOST")
-DB_PORT = os.environ.get("DB_PORT")
-DB_NAME = os.environ.get("DB_NAME")
-DB_USER = os.environ.get("DB_USER")
-DB_PASSWORD = os.environ.get("DB_PASSWORD")
-
 SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
 ```
 
-`schemas.py`ファイルは、Pydanticを使用してデータの検証とシリアライゼーションを行うためのスキーマを定義しています。
+上記の例では、設定情報を使用して`SQLALCHEMY_DATABASE_URL`変数を構築しています。この変数は、SQLAlchemyを使用してデータベースに接続するために使用されます。
 
-1. インポート：
-   - `pydantic`モジュールから`BaseModel`クラスをインポートしています。
-   - `datetime`モジュールをインポートしています。
-   - `typing`モジュールから`List`をインポートしています。
+## 4. セキュリティ上の考慮事項
 
-2. `TokenPayload`クラス：
-   - JWTトークンのペイロードを表すスキーマを定義しています。
-   - トークンに含まれる情報をプロパティとして定義しています。
+データベースの接続情報は機密性が高いため、適切に保護する必要があります。以下は、セキュリティを強化するためのいくつかの推奨事項です：
 
-3. `OrderRequest`クラス：
-   - 注文リクエストのスキーマを定義しています。
-   - 注文リクエストに必要な情報（商品コードと数量）をプロパティとして定義しています。
+- 設定情報を環境変数として保存し、コードに直接記述しないようにする。
+- データベースユーザーに必要最小限の権限のみを付与する。
+- データベースサーバーへのアクセスを制限し、信頼できるネットワークからのみ接続を許可する。
+- データベースの接続情報を暗号化し、安全な方法で保存する。
 
-4. `InventoryRequest`クラス：
-   - 在庫リクエストのスキーマを定義しています。
-   - 在庫リクエストに必要な情報（商品コードと数量）をプロパティとして定義しています。
+## 5. 結論
 
-5. `AllocationRequest`クラス：
-   - 割り当てリクエストのスキーマを定義しています。
-   - 割り当てリクエストに必要な情報（注文ID、商品コード、数量）をプロパティとして定義しています。
-
-6. `OrderResponse`クラス：
-   - 注文レスポンスのスキーマを定義しています。
-   - 注文レスポンスに含まれる情報（ID、商品コード、数量）をプロパティとして定義しています。
-   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
-
-7. `InventoryResponse`クラス：
-   - 在庫レスポンスのスキーマを定義しています。
-   - 在庫レスポンスに含まれる情報（ID、商品コード、数量）をプロパティとして定義しています。
-   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
-
-8. `AllocationResultResponse`クラス：
-   - 割り当て結果レスポンスのスキーマを定義しています。
-   - 割り当て結果レスポンスに含まれる情報（ID、注文ID、商品コード、割り当て数量、割り当て日付）をプロパティとして定義しています。
-   - `Config`クラスで`orm_mode`を`True`に設定し、ORMオブジェクトからデータを読み取ることを指定しています。
-
-この`schemas.py`ファイルは、アプリケーション内で使用されるデータの構造を定義するためのスキーマを提供しています。これらのスキーマは、リクエストの検証、レスポンスのシリアライゼーション、およびORMオブジェクトとの相互変換に使用されます。
-
-例えば、`OrderRequest`スキーマは注文リクエストの検証に使用され、`OrderResponse`スキーマは注文レスポンスのシリアライゼーションに使用されます。また、`Config`クラスの`orm_mode`を`True`に設定することで、ORMオブジェクトからデータを読み取ることができます。
-
-```mermaid
-graph LR
-    subgraph Authentication
-        TokenPayload
-    end
-
-    subgraph Order
-        OrderRequest
-        OrderResponse
-    end
-
-    subgraph Inventory
-        InventoryRequest
-        InventoryResponse
-    end
-
-    subgraph Allocation
-        AllocationRequest
-        AllocationResultResponse
-    end
-
-    TokenPayload --> Order
-    TokenPayload --> Inventory
-    TokenPayload --> Allocation
-
-    OrderRequest --> OrderResponse
-    InventoryRequest --> InventoryResponse
-    AllocationRequest --> AllocationResultResponse
-
-```
-
-`schemas.py`：
-```python
-from pydantic import BaseModel
-from datetime import datetime
-from typing import List
-
-class TokenPayload(BaseModel):
-    sub: str
-    cognito:username: str
-    email: str
-    email_verified: bool
-    given_name: str
-    family_name: str
-    roles: List[str]
-    iss: str
-    aud: str
-    exp: int
-    iat: int
-
-class OrderRequest(BaseModel):
-    item_code: str
-    quantity: int
-
-class InventoryRequest(BaseModel):
-    item_code: str
-    quantity: int
-
-class AllocationRequest(BaseModel):
-    order_id: int
-    item_code: str
-    quantity: int
-
-class OrderResponse(BaseModel):
-    id: int
-    item_code: str
-    quantity: int
-
-    class Config:
-        orm_mode = True
-
-class InventoryResponse(BaseModel):
-    id: int
-    item_code: str
-    quantity: int
-
-    class Config:
-        orm_mode = True
-
-class AllocationResultResponse(BaseModel):
-    id: int
-    order_id: int
-    item_code: str
-    allocated_quantity: int
-    allocation_date: datetime
-
-    class Config:
-        orm_mode = True
-
-```
-
+本設計書では、在庫管理システムにおけるデータベース接続の設定情報について説明しました。`DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USER`、`DB_PASSWORD`の設定情報を適切に定義することで、システムがデータベースに接続できるようになります。これらの設定情報は、データベース接続文字列の構築に使用されます。また、データベースの接続情報を保護するために、セキュリティ上の考慮事項にも注意を払う必要があります。

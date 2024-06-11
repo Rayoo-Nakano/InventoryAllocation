@@ -1,100 +1,143 @@
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer
-from jose import jwt
-from jose.exceptions import JWTError
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas import TokenPayload, OrderRequest, InventoryRequest, AllocationRequest
-from models import Order, Inventory, AllocationResult
 from database import get_db
-from allocation import allocate_inventory
-from utils import COGNITO_JWKS_URL, COGNITO_AUDIENCE, COGNITO_ISSUER
+from models import Order, Inventory, AllocationResult
+from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResponse, InventoryResponse, AllocationResultResponse, TokenPayload
+import jwt
+from jwt.exceptions import InvalidTokenError
+from datetime import datetime
 import logging
-
-app = FastAPI()
-
-auth_scheme = HTTPBearer()
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
-async def authenticate_user(auth_token: str = Depends(auth_scheme)):
-    try:
-        payload = jwt.decode(auth_token.credentials, COGNITO_JWKS_URL, audience=COGNITO_AUDIENCE, issuer=COGNITO_ISSUER)
-        token_data = TokenPayload(**payload)
-        return token_data
-    except JWTError as e:
-        logger.error(f"Invalid authentication token: {e}")
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
+# ログ出力のフォーマットを設定
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-@app.post("/orders", dependencies=[Depends(authenticate_user)])
-def create_order(order: OrderRequest, db: Session = Depends(get_db)):
-    try:
-        db_order = Order(item_code=order.item_code, quantity=order.quantity)
-        db.add(db_order)
-        db.commit()
-        db.refresh(db_order)
-        logger.info(f"Order created: {db_order}")
-        return db_order
-    except Exception as e:
-        logger.error(f"Error creating order: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+# コンソールハンドラを作成し、フォーマットを設定
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
 
-@app.get("/orders", dependencies=[Depends(authenticate_user)])
-def get_orders(db: Session = Depends(get_db)):
-    try:
-        orders = db.query(Order).all()
-        logger.info(f"Retrieved {len(orders)} orders")
-        return orders
-    except Exception as e:
-        logger.error(f"Error retrieving orders: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+# ロガーにコンソールハンドラを追加
+logger.addHandler(console_handler)
 
-@app.post("/inventories", dependencies=[Depends(authenticate_user)])
-def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db)):
-    try:
-        db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity)
-        db.add(db_inventory)
-        db.commit()
-        db.refresh(db_inventory)
-        logger.info(f"Inventory created: {db_inventory}")
-        return db_inventory
-    except Exception as e:
-        logger.error(f"Error creating inventory: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
 
-@app.get("/inventories", dependencies=[Depends(authenticate_user)])
-def get_inventories(db: Session = Depends(get_db)):
-    try:
-        inventories = db.query(Inventory).all()
-        logger.info(f"Retrieved {len(inventories)} inventories")
-        return inventories
-    except Exception as e:
-        logger.error(f"Error retrieving inventories: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+app = FastAPI()
 
-@app.post("/allocate", dependencies=[Depends(authenticate_user)])
-def allocate(allocation: AllocationRequest, db: Session = Depends(get_db)):
-    try:
-        allocation_result = allocate_inventory(allocation.order_id, allocation.item_code, allocation.quantity, db)
-        logger.info(f"Allocation completed: {allocation_result}")
-        return allocation_result
-    except Exception as e:
-        logger.error(f"Error allocating inventory: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+COGNITO_PUBLIC_KEYS = {
+    "key_id_1": "public_key_1",
+    "key_id_2": "public_key_2",
+}
 
-@app.get("/allocation-results", dependencies=[Depends(authenticate_user)])
-def get_allocation_results(db: Session = Depends(get_db)):
+def authenticate_token(token: str) -> TokenPayload:
+    """
+    Amazon Cognitoが発行するJWTトークンを検証する関数
+    """
     try:
-        allocation_results = db.query(AllocationResult).all()
-        logger.info(f"Retrieved {len(allocation_results)} allocation results")
-        return allocation_results
-    except Exception as e:
-        logger.error(f"Error retrieving allocation results: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        headers = jwt.get_unverified_header(token)
+        kid = headers.get("kid")
+        if not kid:
+            raise HTTPException(status_code=401, detail="無効なトークンです")
+        public_key = COGNITO_PUBLIC_KEYS.get(kid)
+        if not public_key:
+            raise HTTPException(status_code=401, detail="無効なトークンです")
+        payload = jwt.decode(token, public_key, algorithms=["RS256"], audience="your_audience", issuer="your_issuer")
+        return TokenPayload(**payload)
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail="無効なトークンです")
+    
+@app.middleware("http")
+async def authentication_middleware(request, call_next):
+    """
+    認証ミドルウェア
+    """
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="認証トークンが見つからないか、無効です")
+    token = token.split(" ")[1]
+    try:
+        payload = authenticate_token(token)
+        request.state.user = payload
+    except HTTPException as e:
+        raise e
+    response = await call_next(request)
+    return response
+
+@app.post("/orders", response_model=OrderResponse, status_code=201)  # ここにstatus_code=201を追加
+def create_order(order: OrderRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    注文を作成するエンドポイント
+    """
+    db_order = Order(item_code=order.item_code, quantity=order.quantity)
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+
+    # レスポンスデータをログ出力
+    logger.debug("==== Create Order Response Data ====")
+    logger.debug(f"Response data: {db_order.__dict__}")
+    logger.debug("=====================================")
+
+    return db_order
+
+@app.get("/orders", response_model=list[OrderResponse])
+def read_orders(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    注文一覧を取得するエンドポイント
+    """
+    orders = db.query(Order).all()
+    return orders
+
+@app.post("/inventories", response_model=InventoryResponse, status_code=201)  # ここにstatus_code=201を追加
+def create_inventory(inventory: InventoryRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    在庫を作成するエンドポイント
+    """
+    receipt_date = datetime.strptime(inventory.receipt_date, "%Y-%m-%d").date()
+    db_inventory = Inventory(item_code=inventory.item_code, quantity=inventory.quantity, receipt_date=receipt_date, unit_price=inventory.unit_price)
+    db.add(db_inventory)
+    db.commit()
+    db.refresh(db_inventory)
+    return db_inventory
+
+@app.get("/inventories", response_model=list[InventoryResponse])
+def read_inventories(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    在庫一覧を取得するエンドポイント
+    """
+    logger.debug("==== Get Inventories ====")
+    logger.debug(f"Token Payload: {token_payload}")
+    logger.debug("==========================")
+
+    inventories = db.query(Inventory).all()
+    return inventories
+
+@app.post("/orders/{order_id}/allocate", response_model=AllocationResultResponse)
+def allocate_inventory(order_id: int, allocation: AllocationRequest, db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    在庫を割り当てるエンドポイント
+    """
+    order = db.query(Order).filter(Order.id == order_id).first()
+    inventory = db.query(Inventory).filter(Inventory.item_code == allocation.item_code, Inventory.quantity >= allocation.quantity).order_by(Inventory.receipt_date).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="注文が見つかりません")
+    if not inventory:
+        raise HTTPException(status_code=404, detail="十分な在庫がありません")
+
+    inventory.quantity -= allocation.quantity
+    allocation_date = datetime.strptime(allocation.allocation_date, "%Y-%m-%d").date()
+    db_allocation = AllocationResult(order_id=order.id, item_code=inventory.item_code, allocated_quantity=allocation.quantity, allocated_price=inventory.unit_price, allocation_date=allocation_date)
+    db.add(db_allocation)
+    db.commit()
+    db.refresh(db_allocation)
+    return db_allocation
+
+@app.get("/allocation-results", response_model=list[AllocationResultResponse])
+def read_allocation_results(db: Session = Depends(get_db), token_payload: TokenPayload = Depends(authenticate_token)):
+    """
+    割り当て結果一覧を取得するエンドポイント
+    """
+    allocation_results = db.query(AllocationResult).all()
+    return allocation_results
