@@ -38,7 +38,7 @@ def allocate_inventory(db: Session, strategy: str):
         else:
             raise ValueError(f"Unknown allocation strategy: {strategy}")
 
-        logger.info(f"Allocation completed for order {order.order_id}")
+        logger.info(f"Allocation completed for order {order.id}")
         order.allocated = True
 
     db.commit()
