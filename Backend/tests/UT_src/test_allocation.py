@@ -23,8 +23,8 @@ def test_allocate_inventory_fifo():
     db.commit()
 
     # テストデータの作成
-    order1 = Order(order_id=1, item_code="ABC123", quantity=5, allocated=False)
-    order2 = Order(order_id=2, item_code="ABC123", quantity=3, allocated=False)
+    order1 = Order(id=1, item_code="ABC123", quantity=5, allocated=False)
+    order2 = Order(id=2, item_code="ABC123", quantity=3, allocated=False)
     db.add_all([order1, order2])
 
     inventory1 = Inventory(item_code="ABC123", quantity=4, unit_price=10)
