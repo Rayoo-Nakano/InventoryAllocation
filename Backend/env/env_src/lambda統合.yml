@@ -9,7 +9,7 @@ Parameters:
   APIGatewayStageName:
     Type: String
     Default: "APIStage-dev"
-#123321
+
   VpcCIDR:
     Type: String
     Default: "10.0.0.0/16"
