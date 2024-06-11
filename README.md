@@ -42,26 +42,45 @@ graph LR
 このシステムアーキテクチャ図は、在庫管理システムの主要なコンポーネントとその関係を示しています。クライアントはReactを使用してUIを構築し、API GatewayとAmazon Cognitoを介してLambdaにアクセスします。LambdaはFastAPIを呼び出し、FastAPIはSQLAlchemyを使用してAmazon RDSとやり取りします。AWS CloudFormationを使用してインフラストラクチャをコード化し、AWS CodePipelineを使用してCI/CDパイプラインを構築します。
 
 ### 3.2 VPC構成
+
 ```mermaid
 graph LR
+    Client[Client] --> WAF[WAF]
+    WAF --> Cognito[Cognito]
+    Cognito --> APIGateway[API Gateway]
     subgraph VPC
         subgraph Public Subnet
-            A[API Gateway]
-            L[Lambda]
+            APIGateway
+            NATGateway[NAT Gateway]
         end
         subgraph Private Subnet
-            B[FastAPI]
-            C[Amazon RDS]
+            RDS[RDS Instance]
+            Lambda[Lambda]
         end
+        subgraph Endpoint Subnet
+            VPCe[VPC Endpoint]
+        end
+        Lambda --> VPCe
+        VPCe --> S3[S3 Bucket]
+        Lambda --> RDS
+        Lambda ---> NATGateway
     end
-    
-    R[React] --> A
-    A --> L
-    L --> B
-    B --> C
+    APIGateway --> Lambda
 ```
 
-このVPC構成図は、セキュリティを向上させるためのネットワーク構成を示しています。API GatewayとLambdaはPublic Subnetに配置され、FastAPIとAmazon RDSはPrivate Subnetに配置されます。ReactはAPI Gatewayを介してシステムにアクセスします。
+在庫管理システムは、以下のVPC構成を採用します。
+
+- VPC外:
+  - クライアント、WAF、およびCognitoを配置し、インターネットからアクセス可能な層を形成する
+- Public Subnet:
+  - API GatewayとNAT Gatewayを配置する
+- Private Subnet:
+  - Lambdaをデプロイし、NAT Gateway経由でインターネットにアクセスする
+  - RDSインスタンスを配置し、データベースを保護する
+- Endpoint Subnet:
+  - VPC EndpointとしてS3エンドポイントを配置し、LambdaがS3バケットにアクセスできるようにする
+
+注）Lambdaは直接Privateサブネットにデプロイすることはできません。ただし、VPC内のPrivateサブネットにLambda関数をデプロイし、NAT Gateway経由でインターネットにアクセスすることで、実質的にPrivateサブネットで動作させることが可能です。
 
 ## 4. 機能一覧
 | 機能 | 説明 |
@@ -218,7 +237,6 @@ erDiagram
   }
   ```
 
-申し訳ありません。シーケンス図の章を最後まで出力します。
 
 ### 6.3 シーケンス図
 #### 注文の作成
