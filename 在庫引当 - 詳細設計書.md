@@ -1,255 +1,371 @@
-## 詳細設計書 - 在庫引当機能
+# 在庫管理システム基本設計書
 
-### 1. 概要
-   本詳細設計書は、在庫管理システムの在庫引当機能を提供するWebAPIアプリケーションの設計について記述したものです。
-   プログラム仕様書に基づいて、各モジュールの詳細な設計を行います。
+## 1. 概要
+本設計書は、在庫管理システムの基本設計について説明する。システムはFastAPIを用いて実装され、注文の作成、在庫の管理、在庫の割り当てなどの機能を提供する。UIにはReactを採用し、API Gatewayを介して認証を行う。バックエンドの処理にはAWS Lambdaを使用し、スケーラビリティと柔軟性を確保する。
 
-### 2. 前提条件
-    2.1. 開発環境
-        - Python 3.9以上
-        - FastAPI 0.68.0以上
-        - SQLAlchemy 1.4.0以上
-        - PostgreSQL 13以上
-    2.2. 運用環境
-        - AWS Lambda
-        - Amazon RDS（PostgreSQL）
-    2.3. 外部システム
-        - 在庫管理システムのフロントエンドアプリケーション
-        - 在庫データを提供する外部システム（例：倉庫管理システム）
+## 2. 前提条件
+- システムはクラウド環境（AWS）で運用される
+- 認証にはAmazon CognitoとAPI Gatewayを使用する
+- データベースにはAmazon RDSを使用し、Private Subnetに配置する
+- 注文と在庫の情報は、外部システムとのAPI連携により取得される
+- 在庫割り当ては、先入先出法（FIFO）に基づいて行われる
+- 在庫の補充は、外部システムからの入荷情報に基づいて行われる
+- インフラストラクチャのプロビジョニングにはIaCを採用し、AWS CloudFormationを使用してコード化する
+- システムの開発にはCI/CDパイプラインを構築し、自動化されたビルド、テスト、デプロイメントを行うことで生産性を向上させる
 
-### 3. モジュール詳細設計
-    3.1. main.py
-        - FastAPIを使用してWebAPIのエンドポイントを定義する
-        - 各エンドポイントのリクエストハンドラを実装する
-        - リクエストデータの検証を行う
-        - 必要に応じて他のモジュールの関数を呼び出す
-        - レスポンスデータを生成してクライアントに返却する
-    3.2. allocation.py
-        - 在庫引当ロジックを実装する
-        - 引当方法（FIFO、LIFO、平均法、個別法、総平均法、移動平均法）に基づいて在庫の引当を行う
-        - 引当結果を生成し、データベースに保存する
-        - 引当結果をmain.pyに返却する
-    3.3. models.py
-        - SQLAlchemyを使用してデータベースのテーブルに対応するデータモデルを定義する
-        - Orderモデル：受注データを表すモデル
-        - Inventoryモデル：在庫データを表すモデル
-        - AllocationResultモデル：引当結果を表すモデル
-        - Itemモデル：商品マスタを表すモデル
-        - 各モデルの属性とリレーションシップを定義する
-    3.4. database.py
-        - SQLAlchemyを使用してデータベース接続を確立する
-        - セッションの作成と管理を行う
-        - データベースとのやり取りに必要な関数を提供する
-    3.5. schemas.py
-        - Pydanticを使用してAPIのリクエストとレスポンスのデータ構造を定義する
-        - 受注データ、在庫データ、引当結果、商品マスタなどのスキーマを定義する
-        - データの検証とシリアライズ/デシリアライズを行う
+## 3. システム構成
+- React: UIの構築に使用するJavaScriptライブラリ
+- FastAPI: Pythonの高速なWebフレームワーク
+- AWS Lambda: サーバーレスコンピューティングサービス
+- SQLAlchemy: PythonのORMライブラリ
+- JWT: 認証にはJSON Web Tokenを使用
+- Amazon Cognito: 認証プロバイダ
+- Amazon API Gateway: APIの管理とセキュリティの提供
+- Amazon RDS: リレーショナルデータベースサービス
+- AWS CloudFormation: インフラストラクチャのコード化とプロビジョニング
+- AWS CodePipeline: CI/CDパイプラインの構築
 
-### 4. API詳細設計
-    4.1. POST /orders
-        - 受注データを登録するエンドポイント
-        - リクエストボディ：OrderSchema
-        - レスポンス：登録された受注データ（OrderSchema）
-    4.2. GET /orders
-        - 受注データを取得するエンドポイント
-        - クエリパラメータ：limit（取得件数）、offset（オフセット）
-        - レスポンス：受注データのリスト（List[OrderSchema]）
-    4.3. POST /inventories
-        - 在庫データを登録するエンドポイント
-        - リクエストボディ：InventorySchema
-        - レスポンス：登録された在庫データ（InventorySchema）
-    4.4. GET /inventories
-        - 在庫データを取得するエンドポイント
-        - クエリパラメータ：item_code（商品コード）、limit（取得件数）、offset（オフセット）
-        - レスポンス：在庫データのリスト（List[InventorySchema]）
-    4.5. POST /allocate
-        - 在庫引当処理を実行するエンドポイント
-        - リクエストボディ：AllocationSchema
-        - レスポンス：引当結果（AllocationResultSchema）
-    4.6. GET /allocation-results
-        - 引当結果を取得するエンドポイント
-        - クエリパラメータ：order_id（受注ID）、item_code（商品コード）、limit（取得件数）、offset（オフセット）
-        - レスポンス：引当結果のリスト（List[AllocationResultSchema]）
-    4.7. POST /items
-        - 商品マスタを登録するエンドポイント
-        - リクエストボディ：ItemSchema
-        - レスポンス：登録された商品マスタ（ItemSchema）
-    4.8. GET /items
-        - 商品マスタを取得するエンドポイント
-        - クエリパラメータ：item_code（商品コード）、limit（取得件数）、offset（オフセット）
-        - レスポンス：商品マスタのリスト（List[ItemSchema]）
-
-### 5. データベース設計
-5.1. ER図
+### 3.1 システムアーキテクチャ
 ```mermaid
-        erDiagram
-            Order {
-                string order_id PK
-                string item_code FK
-                int quantity
-            }
-
-            Inventory {
-                int id PK
-                string item_code FK
-                int quantity
-                date receipt_date
-                float unit_price
-            }
-
-            AllocationResult {
-                int id PK
-                string order_id FK
-                string item_code FK
-                int allocated_quantity
-                float allocated_price
-                date allocation_date
-            }
-
-            Item {
-                string item_code PK
-                string item_name
-                string description
-                string category
-                float price
-            }
-
-            Order ||--o{ AllocationResult : has
-            Inventory ||--o{ AllocationResult : allocated_from
-            Item ||--|{ Order : ordered
-            Item ||--|{ Inventory : stocked
-            Item ||--|{ AllocationResult : allocated
+graph LR
+    A[クライアント] --> B[React]
+    B --> C[API Gateway]
+    C --> D[Lambda]
+    D --> E[FastAPI]
+    E --> F[SQLAlchemy]
+    F --> G[Amazon RDS]
+    C --> H[Amazon Cognito]
+    I[AWS CloudFormation] --> J[インフラストラクチャ]
+    K[AWS CodePipeline] --> L[ビルド・テスト・デプロイメント]
 ```
-     5.2. テーブル定義
-        - ordersテーブル
-          - order_id（主キー）：str
-          - item_code（外部キー）：str
-          - quantity：int
-        - inventoriesテーブル
-          - id（主キー）：int
-          - item_code（外部キー）：str
-          - quantity：int
-          - receipt_date：date
-          - unit_price：float
-        - allocation_resultsテーブル
-          - id（主キー）：int
-          - order_id（外部キー）：str
-          - item_code（外部キー）：str
-          - allocated_quantity：int
-          - allocated_price：float
-          - allocation_date：date
-        - itemsテーブル
-          - item_code（主キー）：str
-          - item_name：str
-          - description：str
-          - category：str
-          - price：float
 
-### 7. UI設計
-     7.1. 技術スタック
-         - React（フロントエンドライブラリ）
-         - TypeScript（静的型付けを提供するJavaScriptスーパーセット）
-         - React Router（クライアントサイドルーティング）
-         - Axios（HTTPクライアント）
-         - Material-UI（UIコンポーネントライブラリ）
-         - Formik（フォーム管理ライブラリ）
-         - Yup（フォームバリデーションライブラリ）
-     7.2. コンポーネント構成
-         - App.tsx
-           - アプリケーションのルートコンポーネント
-           - React Routerを使用してルーティングを定義する
-         - Layout.tsx
-           - 共通のレイアウトを提供するコンポーネント
-           - ヘッダー、フッター、ナビゲーションを含む
-         - OrderList.tsx
-           - 受注一覧を表示するコンポーネント
-           - APIから受注データを取得し、一覧表示する
-           - 検索、ページネーション、ソートの機能を提供する
-         - OrderForm.tsx
-           - 受注登録フォームを表示するコンポーネント
-           - Formikを使用してフォームの状態を管理する
-           - Yupを使用してフォームのバリデーションを行う
-         - InventoryList.tsx
-           - 在庫一覧を表示するコンポーネント
-           - APIから在庫データを取得し、一覧表示する
-           - 検索、ページネーション、ソートの機能を提供する
-         - InventoryForm.tsx
-           - 在庫登録フォームを表示するコンポーネント
-           - Formikを使用してフォームの状態を管理する
-           - Yupを使用してフォームのバリデーションを行う
-         - AllocationResult.tsx
-           - 引当結果を表示するコンポーネント
-           - APIから引当結果データを取得し、表示する
-         - ItemList.tsx
-           - 商品マスタ一覧を表示するコンポーネント
-           - APIから商品マスタデータを取得し、一覧表示する
-           - 検索、ページネーション、ソートの機能を提供する
-         - ItemForm.tsx
-           - 商品マスタ登録フォームを表示するコンポーネント
-           - Formikを使用してフォームの状態を管理する
-           - Yupを使用してフォームのバリデーションを行う
-     7.3. 状態管理
-         - React Contextを使用して、アプリケーション全体で共有する状態を管理する
-         - ログイン状態、ユーザー情報、通知メッセージなどを管理する
-     7.4. ルーティング
-         - React Routerを使用して、クライアントサイドルーティングを実装する
-         - 以下のルートを定義する
-           - /orders：受注一覧ページ
-           - /orders/new：受注登録ページ
-           - /inventories：在庫一覧ページ
-           - /inventories/new：在庫登録ページ
-           - /allocation-results：引当結果ページ
-           - /items：商品マスタ一覧ページ
-           - /items/new：商品マスタ登録ページ
-     7.5. API通信
-         - Axiosを使用して、バックエンドAPIとの通信を行う
-         - APIのエンドポイントに対応するメソッドを定義する
-         - 受注データ、在庫データ、引当結果、商品マスタデータの取得と登録を行う
-     7.6. エラーハンドリング
-         - APIとの通信エラーをキャッチし、適切なエラーメッセージを表示する
-         - フォームのバリデーションエラーを表示する
-         - 認証エラー、権限エラーなどのエラーを適切に処理する
-     7.7. UIデザイン
-         - Material-UIを使用して、一貫性のあるUIデザインを実装する
-         - レスポンシブデザインを適用し、モバイルデバイスにも対応する
-         - ユーザーエクスペリエンスを考慮し、わかりやすいナビゲーションとフィードバックを提供する
+このシステムアーキテクチャ図は、在庫管理システムの主要なコンポーネントとその関係を示しています。クライアントはReactを使用してUIを構築し、API GatewayとAmazon Cognitoを介してLambdaにアクセスします。LambdaはFastAPIを呼び出し、FastAPIはSQLAlchemyを使用してAmazon RDSとやり取りします。AWS CloudFormationを使用してインフラストラクチャをコード化し、AWS CodePipelineを使用してCI/CDパイプラインを構築します。
 
+### 3.2 VPC構成
+```mermaid
+graph LR
+    subgraph VPC
+        subgraph Public Subnet
+            A[API Gateway]
+            L[Lambda]
+        end
+        subgraph Private Subnet
+            B[FastAPI]
+            C[Amazon RDS]
+        end
+    end
+    
+    R[React] --> A
+    A --> L
+    L --> B
+    B --> C
+```
 
-### 8. エラーハンドリング
-   - 各エンドポイントでは、適切なエラーハンドリングを行う
-   - リクエストデータの検証エラー（HTTPステータスコード400）
-   - 認証エラー（HTTPステータスコード401）
-   - 権限エラー（HTTPステータスコード403）
-   - リソースが見つからない場合（HTTPステータスコード404）
-   - サーバーエラー（HTTPステータスコード500）
-   - エラーレスポンスには、エラーメッセージとエラーコードを含める
+このVPC構成図は、セキュリティを向上させるためのネットワーク構成を示しています。API GatewayとLambdaはPublic Subnetに配置され、FastAPIとAmazon RDSはPrivate Subnetに配置されます。ReactはAPI Gatewayを介してシステムにアクセスします。
 
-### 9. ロギング
-   - 各モジュールでは、適切なロギングを行う
-   - ログレベル（DEBUG、INFO、WARNING、ERROR）に応じてログ出力を行う
-   - ログには、タイムスタンプ、ログレベル、モジュール名、関数名、メッセージを含める
-   - ログ出力先は、コンソール、ファイル、またはログ管理サービスを使用する
+## 4. 機能一覧
+| 機能 | 説明 |
+|------|------|
+| 注文の作成 | 外部システムから受け取った注文情報を登録する |
+| 在庫の管理 | 外部システムから受け取った入荷情報に基づいて在庫を更新する |
+| 在庫の割り当て | 注文に対して、指定された引当方法に基づいて在庫を割り当てる |
+| 割り当て結果の取得 | 在庫割り当ての結果を取得する |
+| 在庫引当方法の選択 | 以下の6種類の在庫引当方法から選択する |
+| - 先入先出法（FIFO） | 最も古い在庫から順に割り当てる |
+| - 後入先出法（LIFO） | 最も新しい在庫から順に割り当てる |
+| - 単価の安い在庫から引当 | 単価の安い在庫から優先的に割り当てる |
+| - 単価の高い在庫から引当 | 単価の高い在庫から優先的に割り当てる |
+| - 賞味期限の近い在庫から引当 | 賞味期限が近い在庫から優先的に割り当てる |
+| - ロケーション優先引当 | 指定されたロケーションの在庫から優先的に割り当てる |
 
-### 10. テスト
-   - 各モジュールに対応するテストモジュールを作成する
-   - ユニットテスト：各関数の機能を独立してテストする
-   - 統合テスト：複数のモジュールを組み合わせてテストする
-   - テストデータを準備し、期待される結果と実際の結果を比較する
-   - テストカバレッジを計測し、一定以上のカバレッジを確保する
+## 5. データベース設計
+### 5.1 ERD
+```mermaid
+erDiagram
+    Order ||--o{ AllocationResult : has
+    Inventory ||--o{ AllocationResult : has
+    
+    Order {
+        int id PK
+        string item_code
+        int quantity
+        bool allocated
+    }
+    
+    Inventory {
+        int id PK
+        string item_code
+        int quantity
+        date receipt_date
+        float unit_price
+        date expiration_date
+        string location
+        datetime created_at
+    }
+    
+    AllocationResult {
+        int id PK
+        int order_id FK
+        string item_code
+        int allocated_quantity
+        float allocated_price
+        date allocation_date
+    }
+```
 
-### 11. デプロイ
-   - AWS Lambdaを使用してアプリケーションをデプロイする
-   - Dockerを使用してアプリケーションをパッケージ化する
-   - AWS APIGatewayを使用してエンドポイントを公開する
-   - AWS RDSを使用してPostgreSQLデータベースをセットアップする
-   - 必要な環境変数を設定する（データベース接続情報など）
+### 5.2 テーブル定義
+#### Orderテーブル
+| カラム名 | データ型 | 説明 |
+|----------|----------|------|
+| id | int | 注文ID（プライマリキー） |
+| item_code | string | 商品コード |
+| quantity | int | 数量 |
+| allocated | bool | 割当済みフラグ |
 
-### 12. 今後の拡張性
-   - 新しい引当方法を追加する際は、allocation.pyモジュールに新しい関数を追加する
-   - レポート機能を追加する際は、新しいエンドポイントとモジュールを追加する
-   - 在庫補充機能を追加する際は、新しいエンドポイントとモジュールを追加する
-   - 権限管理を導入する際は、認証・認可のミドルウェアを追加し、エンドポイントに適用する
+#### Inventoryテーブル
+| カラム名 | データ型 | 説明 |
+|-----------|-----------|------|
+| id | int | 在庫ID（プライマリキー） |
+| item_code | string | 商品コード |
+| quantity | int | 数量 |
+| receipt_date | date | 入荷日 |
+| unit_price | float | 単価 |
+| expiration_date | date | 賞味期限 |
+| location | string | ロケーション |
+| created_at | datetime | 作成日時 |
 
-以上が、在庫管理システムの在庫引当機能を提供するWebAPIアプリケーションの詳細設計書です。
-この設計書に基づいて、アプリケーションの実装を進めていきます。
-また、テストとデプロイのプロセスを適切に実施し、品質と信頼性を確保していきます。
+#### AllocationResultテーブル
+| カラム名 | データ型 | 説明 |
+|---------------|-----------|------|
+| id | int | 割当結果ID（プライマリキー） |
+| order_id | int | 注文ID（外部キー） |
+| item_code | string | 商品コード |
+| allocated_quantity | int | 割当数量 |
+| allocated_price | float | 割当価格 |
+| allocation_date | date | 割当日 |
+
+## 6. API設計
+### 6.1 エンドポイント一覧
+| エンドポイント | メソッド | 説明 |
+|----------------|----------|------|
+| /orders | POST | 注文の作成 |
+| /orders | GET | 注文の取得 |
+| /inventories | POST | 在庫の作成 |
+| /inventories | GET | 在庫の取得 |
+| /orders/{order_id}/allocate | POST | 在庫の割り当て |
+| /allocation-results | GET | 割り当て結果の取得 |
+
+### 6.2 リクエスト/レスポンス例
+#### 注文の作成
+- リクエスト
+  ```json
+  {
+    "item_code": "ABC123",
+    "quantity": 10
+  }
+  ```
+- レスポンス
+  ```json
+  {
+    "order_id": 1,
+    "item_code": "ABC123",
+    "quantity": 10,
+    "allocated": false
+  }
+  ```
+
+#### 在庫の作成
+- リクエスト
+  ```json
+  {
+    "item_code": "ABC123",
+    "quantity": 100,
+    "receipt_date": "2023-06-01",
+    "unit_price": 9.99
+  }
+  ```
+- レスポンス
+  ```json
+  {
+    "id": 1,
+    "item_code": "ABC123",
+    "quantity": 100,
+    "receipt_date": "2023-06-01",
+    "unit_price": 9.99,
+    "created_at": "2023-06-01T10:00:00Z"
+  }
+  ```
+
+#### 在庫の割り当て
+- リクエスト
+  ```json
+  {
+    "order_id": 1,
+    "item_code": "ABC123",
+    "quantity": 5,
+    "allocation_date": "2023-06-02"
+  }
+  ```
+- レスポンス
+  ```json
+  {
+    "id": 1,
+    "order_id": 1,
+    "item_code": "ABC123",
+    "allocated_quantity": 5,
+    "allocated_price": 49.95,
+    "allocation_date": "2023-06-02"
+  }
+  ```
+
+申し訳ありません。シーケンス図の章を最後まで出力します。
+
+### 6.3 シーケンス図
+#### 注文の作成
+```mermaid
+sequenceDiagram
+    participant Client
+    participant React
+    participant API Gateway
+    participant Lambda
+    participant FastAPI
+    participant SQLAlchemy
+    participant Database
+    
+    Client->>React: Create order
+    React->>API Gateway: POST /orders
+    API Gateway->>Lambda: Forward request
+    Lambda->>FastAPI: Forward request
+    FastAPI->>SQLAlchemy: Create order
+    SQLAlchemy->>Database: Insert order
+    Database-->>SQLAlchemy: Order inserted
+    SQLAlchemy-->>FastAPI: Order created
+    FastAPI-->>Lambda: Order response
+    Lambda-->>API Gateway: Order response
+    API Gateway-->>React: Order response
+    React-->>Client: Display order
+```
+
+#### 在庫の割り当て
+```mermaid
+sequenceDiagram
+    participant Client
+    participant React
+    participant API Gateway
+    participant Lambda
+    participant FastAPI
+    participant SQLAlchemy
+    participant Database
+    
+    Client->>React: Allocate inventory
+    React->>API Gateway: POST /orders/{order_id}/allocate
+    API Gateway->>Lambda: Forward request
+    Lambda->>FastAPI: Forward request
+    FastAPI->>SQLAlchemy: Allocate inventory
+    SQLAlchemy->>Database: Query inventory
+    Database-->>SQLAlchemy: Inventory data
+    SQLAlchemy->>SQLAlchemy: Apply allocation method
+    SQLAlchemy->>Database: Update inventory
+    Database-->>SQLAlchemy: Inventory updated
+    SQLAlchemy->>Database: Create allocation result
+    Database-->>SQLAlchemy: Allocation result created
+    SQLAlchemy-->>FastAPI: Allocation result
+    FastAPI-->>Lambda: Allocation result response
+    Lambda-->>API Gateway: Allocation result response
+    API Gateway-->>React: Allocation result response
+    React-->>Client: Display allocation result
+```
+
+#### 割り当て結果の取得
+```mermaid
+sequenceDiagram
+    participant Client
+    participant React
+    participant API Gateway
+    participant Lambda
+    participant FastAPI
+    participant SQLAlchemy
+    participant Database
+    
+    Client->>React: Get allocation results
+    React->>API Gateway: GET /allocation-results
+    API Gateway->>Lambda: Forward request
+    Lambda->>FastAPI: Forward request
+    FastAPI->>SQLAlchemy: Get allocation results
+    SQLAlchemy->>Database: Query allocation results
+    Database-->>SQLAlchemy: Allocation results data
+    SQLAlchemy-->>FastAPI: Allocation results
+    FastAPI-->>Lambda: Allocation results response
+    Lambda-->>API Gateway: Allocation results response
+    API Gateway-->>React: Allocation results response
+    React-->>Client: Display allocation results
+```
+
+以上が、在庫管理システムの基本設計書のAPI設計セクションに含まれるシーケンス図です。これらのシーケンス図は、注文の作成、在庫の割り当て、および割り当て結果の取得の各プロセスにおけるコンポーネント間の相互作用を示しています。
+
+## 7. 非機能要件
+### 7.1 セキュリティ
+- 認証にはAmazon CognitoとAPI Gatewayを使用し、JWTトークンによるアクセス制御を行う
+- VPCを使用し、APIサーバーをPublic Subnet、データベースをPrivate Subnetに配置することで、セキュリティを向上させる
+
+### 7.2 パフォーマンス
+- FastAPIを使用することで、高速なレスポンスを実現する
+- システムは、1日あたり1,000件以上の注文を処理できる必要がある
+- システムは、99.9%以上の可用性を維持する必要がある
+- システムは、ピーク時でも3秒以内にレスポンスを返す必要がある
+
+### 7.3 拡張性
+- SQLAlchemyを使用することで、データベースの変更に柔軟に対応できる
+- AWS Lambdaを使用することで、スケーラビリティと柔軟性を確保する
+
+### 7.4 ログ出力
+- 開発・運用の目的で、システムの動作状況や例外情報をログに出力する
+- ログレベルを適切に設定し、必要な情報を出力する
+- ログ出力先はファイルまたはログ管理システムとする
+
+### 7.5 自動化
+- インフラストラクチャのプロビジョニングにはAWS CloudFormationを使用し、コード化することで環境の再現性を確保する
+- CI/CDパイプラインを構築し、自動化されたビルド、テスト、デプロイメントを行うことで、開発の効率化と品質の向上を図る
+
+### 7.6 データ保護
+- システムは、個人情報を含む機密データを安全に保護する必要がある
+
+### 7.7 監査証跡
+- システムは、監査証跡を提供し、トレーサビリティを確保する必要がある
+
+## 8. 今後の課題
+- 在庫割り当ての最適化
+- 在庫の自動補充機能の実装
+- 注文のキャンセル機能の追加
+- 外部システムとのAPI連携の拡張
+- モニタリングとアラート機能の追加
+- UIのユーザビリティの向上
+- モバイルアプリの開発
+- 国際化対応
+- パフォーマンスチューニング
+- セキュリティ監査の実施
+- 在庫補充プロセスの自動化
+- 在庫最適化アルゴリズムの導入
+- 異常検知とアラート機能の実装
+- パフォーマンスとスケーラビリティのテストと最適化
+
+## 9. 参考資料
+- React公式ドキュメント: https://reactjs.org/docs/
+- FastAPI公式ドキュメント: https://fastapi.tiangolo.com/
+- SQLAlchemy公式ドキュメント: https://docs.sqlalchemy.org/
+- Amazon Cognito公式ドキュメント: https://aws.amazon.com/jp/cognito/
+- Amazon API Gateway公式ドキュメント: https://aws.amazon.com/jp/api-gateway/
+- AWS CloudFormation公式ドキュメント: https://aws.amazon.com/jp/cloudformation/
+- AWS CodePipeline公式ドキュメント: https://aws.amazon.com/jp/codepipeline/
+
+## 10. 変更履歴
+| バージョン | 日付 | 変更内容 |
+|------------|------|----------|
+| 1.0 | 2023-06-01 | 初版作成 |
+| 1.1 | 2023-06-02 | UIにReactを採用、API Gatewayによる認証を追加 |
+| 1.2 | 2023-06-02 | VPC構成を追加、RDSをPrivate Subnetに配置 |
+| 1.3 | 2023-06-03 | 非機能要件を更新、今後の課題を追加 |
+
+以上が、在庫管理システムの基本設計書の最新版です。非機能要件を更新し、セキュリティ、パフォーマンス、拡張性、ログ出力、自動化、データ保護、監査証跡の各項目を詳細化しました。また、今後の課題に新たな項目を追加し、システムの継続的な改善と拡張に向けた計画を示しました。
+
+今後は、この設計書に基づいてシステムの実装を進めていきます。実装の過程で新たな課題や改善点が見つかった場合は、適宜設計書をアップデートしていきます。
