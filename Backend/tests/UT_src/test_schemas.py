@@ -98,7 +98,7 @@ def test_allocate_inventory():
         
         # 注文を作成
         response = client.post("/orders", json=order_data.dict(), headers=headers)
-        order_id = response.json()["data"]["id"]  # 型のキャストは不要
+        order_id = response.json()["allocation_results"]["id"]  # 型のキャストは不要
         
         # 在庫を割り当て
         response = client.post(f"/orders/{order_id}/allocate", headers=headers)
