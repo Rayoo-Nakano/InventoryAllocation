@@ -1,9 +1,11 @@
 {
-    "CognitoUserPoolArn": "arn:aws:cognito-idp:ap-northeast-1:123456789012:userpool/ap-northeast-1_abcdefghi",
-    "CognitoUserPoolClientId": "abcdefghijklmnopqrstuvwxy",
+    "CognitoUserPoolArn": "arn:aws:cognito-idp:ap-northeast-1:047403811176:userpool/ap-northeast-1_z3MqPKbu0",
+    "CognitoUserPoolClientId": "78rpor87694sq6rb6ls303fg2t",
     "DatabaseSecretArn": "arn:aws:secretsmanager:ap-northeast-1:123456789012:secret:MyDatabaseSecret-abcdef",
-    "LambdaCodeBucket": "my-lambda-code-bucket",
+    "LambdaCodeBucket": "lxj-lambda-code-bucket",
     "LambdaCodeKey": "fastapi-app/lambda_function.zip",
-    "VpcEndpointIds": ["vpce-1234abcd", "vpce-5678efgh"],
+    "VpcId":"vpc-004ca6b3f43853a73",
+    "PrivateSubnet1Id":"subnet-02186b55eec727376",
+    "PrivateSubnet2Id":"subnet-0eeae32c2476abc31",
     "APIGatewayStageName": "dev"
   }

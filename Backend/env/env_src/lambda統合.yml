@@ -4,28 +4,52 @@ Description: 'AWS CloudFormation template for creating a VPC with public and pri
 Parameters:
   EnvironmentName:
     Type: String
+    Default: "Dev"
+
+  APIGatewayStageName:
+    Type: String
+    Default: "APIStage-dev"
 
   VpcCIDR:
     Type: String
+    Default: "10.0.0.0/16"
 
   PublicSubnet1CIDR:
     Type: String
+    Default: "10.0.3.0/24"
 
   # PublicSubnet2CIDR:
   #   Type: String
 
   PrivateSubnet1CIDR:
     Type: String
+    Default: "10.0.2.0/24"
 
   PrivateSubnet2CIDR:
     Type: String  
+    Default: "10.0.1.0/24"
 
   DBMasterUsername:
     Type: String
+    Default: "mydbuser"
 
   DBMasterUserPassword:
     Type: String
+    Default: "mydbpassword"
     NoEcho: true
+
+  LambdaCodeBucket:
+    Type: String
+    Default: "lxj-lambda-code-bucket"
+
+  LambdaCodeKey:
+    Type: String
+    Default: "fastapi-app/lambda_function.zip"
+
+  ParameterFilePath:
+    Type: String
+    Default: 's3://lxj-parameter-bucket/LambdaParameters.json'
+    Description: 'パラメータファイルのパス'
 
 Resources:
   # VPCの定義
@@ -38,6 +62,50 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${EnvironmentName}-VPC'
+
+  # FastAPIアプリケーションを実行するLambda関数
+  FastAPIFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'FastAPIFunction'
+      Runtime: 'python3.9'
+      Handler: 'main.handler'
+      Code:
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
+      Environment:
+        Variables:
+          PARAMETER_FILE_PATH: !Ref ParameterFilePath
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 128
+
+  # Lambda関数の実行に必要なIAMロール
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'LambdaExecutionPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                Resource: !Sub 'arn:aws:s3:::lxj-parameter-bucket/LambdaParameters.json'
 
   # インターネットゲートウェイの定義
   InternetGateway:
@@ -89,6 +157,26 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub '${EnvironmentName}-Private-Subnet-2'
+
+  # VPCエンドポイント1の定義
+  VPCEndpoint1:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.execute-api'
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet1
+
+  # VPCエンドポイント2の定義
+  VPCEndpoint2:
+    Type: 'AWS::EC2::VPCEndpoint'
+    Properties:
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.execute-api'
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SubnetIds:
+        - !Ref PrivateSubnet2
 
   # NATゲートウェイ用のElastic IPの定義
   NatGateway1EIP:
@@ -203,12 +291,36 @@ Resources:
         - !Ref RDSSecurityGroup
       DBSubnetGroupName: !Ref RDSSubnetGroup
 
+  # # API Gatewayの定義
+  # APIGateway:
+  #   Type: 'AWS::ApiGateway::RestApi'
+  #   Properties:
+  #     Name: !Sub '${EnvironmentName}-API'
+  #     Description: 'API Gateway for my application'
+
   # API Gatewayの定義
   APIGateway:
     Type: 'AWS::ApiGateway::RestApi'
     Properties:
-      Name: !Sub '${EnvironmentName}-API'
-      Description: 'API Gateway for my application'
+      Name: 'FastAPIGateway'
+      EndpointConfiguration:
+        Types:
+          - PRIVATE
+        VpcEndpointIds: 
+          - !Ref VPCEndpoint1
+          - !Ref VPCEndpoint2
+      Policy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action: "execute-api:Invoke"
+            Resource: "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*"
+            Condition:
+              StringEquals:
+                aws:SourceVpce:
+                  - !Ref VPCEndpoint1
+                  - !Ref VPCEndpoint2
 
   # API Gateway Authorizerの定義 (Cognitoユーザープールを使用)
   APIGatewayAuthorizer:
@@ -221,21 +333,52 @@ Resources:
         - !GetAtt CognitoUserPool.Arn
       IdentitySource: 'method.request.header.Authorization'
 
-  # API Gateway リソース (items) の定義
-  APIGatewayResourceItems:
-    Type: 'AWS::ApiGateway::Resource'
-    Properties:
-      RestApiId: !Ref APIGateway
-      ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: items
+  # # API Gateway リソース (items) の定義
+  # APIGatewayResourceItems:
+  #   Type: 'AWS::ApiGateway::Resource'
+  #   Properties:
+  #     RestApiId: !Ref APIGateway
+  #     ParentId: !GetAtt APIGateway.RootResourceId
+  #     PathPart: items
 
-  # API Gateway リソース (orders) の定義
-  APIGatewayResourceOrders:
+  # # API Gateway リソース (orders) の定義
+  # APIGatewayResourceOrders:
+  #   Type: 'AWS::ApiGateway::Resource'
+  #   Properties:
+  #     RestApiId: !Ref APIGateway
+  #     ParentId: !GetAtt APIGateway.RootResourceId
+  #     PathPart: orders
+
+  # API Gatewayのリソース定義
+  APIGatewayResource:
     Type: 'AWS::ApiGateway::Resource'
     Properties:
-      RestApiId: !Ref APIGateway
       ParentId: !GetAtt APIGateway.RootResourceId
-      PathPart: orders
+      PathPart: '{proxy+}'
+      RestApiId: !Ref APIGateway
+
+  # API Gatewayのメソッド定義とLambda関数との統合
+  APIGatewayMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      HttpMethod: ANY
+      ResourceId: !Ref APIGatewayResource
+      RestApiId: !Ref APIGateway
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref APIGatewayAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:ap-northeast-1:lambda:path/2015-03-31/functions/${FastAPIFunction.Arn}/invocations'
+
+  # API Gatewayの変更をデプロイ
+  APIGatewayDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn:
+      - APIGatewayMethod
+    Properties:
+      RestApiId: !Ref APIGateway
+      StageName: !Ref APIGatewayStageName
 
   # Cognito ユーザープールの定義
   CognitoUserPool:
@@ -259,3 +402,9 @@ Resources:
       ClientName: !Sub '${EnvironmentName}-UserPoolClient'
       ExplicitAuthFlows:
         - ADMIN_NO_SRP_AUTH
+
+Outputs:
+  # API GatewayのエンドポイントURLを出力
+  APIGatewayInvokeURL:
+    Description: 'API GatewayのエンドポイントURL'
+    Value: !Sub 'https://${APIGateway}.execute-api.ap-northeast-1.amazonaws.com/${APIGatewayStageName}'
