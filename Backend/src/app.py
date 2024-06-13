@@ -6,6 +6,7 @@ from schemas import OrderRequest, InventoryRequest, AllocationRequest, OrderResp
 import jwt
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime
+from mangum import Mangum
 import logging
 
 # ロガーの設定
@@ -22,8 +23,11 @@ console_handler.setFormatter(formatter)
 # ロガーにコンソールハンドラを追加
 logger.addHandler(console_handler)
 
-
+# FastAPI アプリケーションのインスタンスを作成
 app = FastAPI()
+
+# Lambda関数のエントリーポイント
+handler = Mangum(app)
 
 COGNITO_PUBLIC_KEYS = {
     "key_id_1": "public_key_1",

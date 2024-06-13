@@ -1,0 +1,329 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: !Sub 'CI/CD Pipeline for ${ProjectDescription}'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'inventory-allocation'
+  ProjectDescription:
+    Type: String
+    Default: 'Inventory Allocation System'
+  GitHubOwner:
+    Type: String
+  GitHubRepository:
+    Type: String
+  GitHubBranch:
+    Type: String
+    Default: 'main'
+  GitHubOAuthToken:
+    Type: String
+    NoEcho: true
+  CodeArtifactRepositoryName:
+    Type: String
+  LambdaAlias:
+    Type: String
+  EnvironmentVariable1:
+    Type: String
+  EnvironmentVariable2:
+    Type: String
+
+Resources:
+  # Lambda関数のスタックを作成
+  LambdaStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateInPipeline.yml"
+      Parameters:
+        ProjectName: !Ref ProjectName
+        EnvironmentVariable1: !Ref EnvironmentVariable1
+        EnvironmentVariable2: !Ref EnvironmentVariable2
+
+  # CodeBuildサービスロールを作成
+  CodeBuildServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-codebuild-access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:PutObject'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:UpdateAlias'
+                Resource: '*'
+
+  # CodeBuildプロジェクトを作成
+  CodeBuildProject:
+    Type: 'AWS::CodeBuild::Project'
+    Properties:
+      Name: !Sub '${ProjectName}-build'
+      Description: !Sub 'Build project for ${ProjectDescription}'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: 'aws/codebuild/standard:4.0'
+        EnvironmentVariables:
+          - Name: CODEARTIFACT_REPOSITORY_NAME
+            Value: !Ref CodeArtifactRepositoryName
+          - Name: ProjectName
+            Value: !Ref ProjectName
+          - Name: ALIAS
+            Value: !Ref LambdaAlias
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: 'buildspec.yml'
+
+  # CodePipelineサービスロールを作成
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-codepipeline-access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: !GetAtt CodeBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:ListFunctions'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:PutObject'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteStack'
+                Resource: '*'
+
+  # CodePipelineを作成
+  CodePipeline:
+    Type: 'AWS::CodePipeline::Pipeline'
+    Properties:
+      Name: !Sub '${ProjectName}-pipeline'
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactStoreBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: '1'
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref GitHubRepository
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Ref GitHubOAuthToken
+              OutputArtifacts:
+                - Name: SourceOutput
+        - Name: CheckLambdaFunction
+          Actions:
+            - Name: CheckLambdaFunction
+              ActionTypeId:
+                Category: Invoke
+                Owner: AWS
+                Provider: Lambda
+                Version: '1'
+              Configuration:
+                FunctionName: !GetAtt LambdaStack.Outputs.LambdaFunction
+              InputArtifacts:
+                - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildAction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+        - Name: Deploy
+          Actions:
+            - Name: DeployAction
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: '1'
+              Configuration:
+                ApplicationName: !Ref CodeDeployApplication
+                DeploymentGroupName: !Ref CodeDeployDeploymentGroup
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: AppSpecFile
+              RunOrder: 1
+            - Name: CreateAppSpecFile
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                BucketName: !Ref ArtifactStoreBucket
+                ObjectKey: 'appspec.yml'
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: AppSpecFile
+              RunOrder: 2
+
+  # CodeDeployアプリケーションを作成
+  CodeDeployApplication:
+    Type: 'AWS::CodeDeploy::Application'
+    Properties:
+      ApplicationName: !Sub '${ProjectName}-app'
+      ComputePlatform: Lambda
+
+  # CodeDeployデプロイメントグループを作成
+  CodeDeployDeploymentGroup:
+    Type: 'AWS::CodeDeploy::DeploymentGroup'
+    Properties:
+      ApplicationName: !Ref CodeDeployApplication
+      DeploymentGroupName: !Sub '${ProjectName}-group'
+      ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
+      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM
+      AlarmConfiguration:
+        Enabled: true
+        Alarms:
+          - !Ref LambdaErrorsAlarm
+          - !Ref LambdaThrottlesAlarm
+
+  # CodeDeployデプロイメント設定を作成
+  CodeDeployDeploymentConfig:
+    Type: 'AWS::CodeDeploy::DeploymentConfig'
+    Properties:
+      DeploymentConfigName: !Sub '${ProjectName}-config'
+      TrafficRoutingConfig:
+        Type: AllAtOnce
+
+  # CodeDeployサービスロールを作成
+  CodeDeployServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub '${ProjectName}-codedeploy-access'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                  - 'lambda:GetFunction'
+                  - 'lambda:GetFunctionConfiguration'
+                  - 'lambda:UpdateFunctionCode'
+                  - 'lambda:UpdateFunctionConfiguration'
+                  - 'lambda:PublishVersion'
+                  - 'lambda:CreateAlias'
+                  - 'lambda:UpdateAlias'
+                  - 'lambda:GetAlias'
+                  - 'lambda:ListVersionsByFunction'
+                  - 'lambda:ListAliases'
+                  - 'codedeploy:GetApplication'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetDeploymentInstance'
+                  - 'codedeploy:ListDeploymentInstances'
+                  - 'codedeploy:ListDeployments'
+                  - 'codedeploy:ContinueDeployment'
+                  - 'codedeploy:GetDeploymentTarget'
+                  - 'codedeploy:ListDeploymentTargets'
+                  - 'codedeploy:PutLifecycleEventHookExecutionStatus'
+                Resource: '*'
+
+  # アーティファクトストア用のS3バケットを作成
+  ArtifactStoreBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${ProjectName}-artifact-store'
+
+  # Lambda関数のエラー率が閾値を超えた場合のアラームを作成
+  LambdaErrorsAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-lambda-errors'
+      AlarmDescription: 'Lambda function error rate exceeds threshold'
+      Namespace: 'AWS/Lambda'
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !GetAtt LambdaStack.Outputs.LambdaFunction
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToTh
