@@ -1,19 +1,76 @@
+Parameters:
+  # LambdaParameters.jsonから取得するパラメータ
+  CognitoUserPoolArn:
+    Type: String
+    Description: Amazon Cognito ユーザープールの ARN
+  CognitoUserPoolClientId:
+    Type: String
+    Description: Amazon Cognito ユーザープールクライアントの ID
+  DatabaseSecretArn:
+    Type: String
+    Description: データベース接続情報を保存するAWS Secrets Managerのシークレットの ARN
+  LambdaCodeBucket:
+    Type: String
+    Description: Lambdaコードを保存するS3バケット名
+  LambdaCodeKey:
+    Type: String
+    Description: Lambdaコードのオブジェクトキー
+  VpcId:
+    Type: String
+    Description: Lambda関数を配置するVPC ID
+  PrivateSubnet1Id:
+    Type: String
+    Description: Lambda関数を配置するプライベートサブネット1の ID
+  PrivateSubnet2Id:
+    Type: String
+    Description: Lambda関数を配置するプライベートサブネット2の ID
+  APIGatewayStageName:
+    Type: String
+    Description: API Gatewayのステージ名
+
+  # CICDparameters.jsonから取得するパラメータ
+  ProjectName:
+    Type: String
+    Description: プロジェクト名
+  CodeArtifactRepositoryName:
+    Type: String
+    Description: CodeArtifactリポジトリ名
+  GitHubOwner:
+    Type: String
+    Description: GitHubリポジトリのオーナー
+  GitHubRepository:
+    Type: String
+    Description: GitHubリポジトリ名
+  GitHubBranch:
+    Type: String
+    Description: GitHubブランチ名
+  GitHubOAuthToken:
+    Type: String
+    Description: GitHubのOAuthトークン
+
 Resources:
   LambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Ref ProjectName  # Lambdaファンクション名をプロジェクト名と同じにする
-      Runtime: python3.8  # Lambdaファンクションのランタイムを指定
-      Handler: app.handler  # Lambdaファンクションのエントリーポイントを指定
-      Role: !GetAtt LambdaExecutionRole.Arn  # Lambdaファンクションの実行ロールを指定
+      FunctionName: !Ref ProjectName
+      Runtime: python3.8
+      Handler: app.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
       Code:
-        S3Bucket: !Ref ArtifactStoreBucket  # Lambdaファンクションのコードが保存されているS3バケットを指定
-        S3Key: !Sub "${ProjectName}/${ProjectName}.zip"  # Lambdaファンクションのコードが保存されているS3オブジェクトのキーを指定
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeKey
       Environment:
         Variables:
-          ENV_VAR_1: !Ref EnvironmentVariable1  # 環境変数1を指定
-          ENV_VAR_2: !Ref EnvironmentVariable2  # 環境変数2を指定
-    DeletionPolicy: Retain  # スタックが削除されてもLambdaファンクションを保持する
+          COGNITO_USER_POOL_ARN: !Ref CognitoUserPoolArn
+          COGNITO_USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClientId
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+      VpcConfig:
+        SubnetIds:
+          - !Ref PrivateSubnet1Id
+          - !Ref PrivateSubnet2Id
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroup
+    DeletionPolicy: Retain
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -35,7 +92,63 @@ Resources:
             Statement:
               - Effect: Allow
                 Action:
-                  - logs:CreateLogGroup  # CloudWatch Logsのロググループを作成する権限を付与
-                  - logs:CreateLogStream  # CloudWatch Logsのログストリームを作成する権限を付与
-                  - logs:PutLogEvents  # CloudWatch Logsにログイベントを書き込む権限を付与
-                Resource: arn:aws:logs:*:*:*  # 上記の権限を全てのCloudWatch Logsリソースに対して付与
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DatabaseSecretArn
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Lambda function
+      VpcId: !Ref VpcId
+
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ProjectName
+
+  APIGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt APIGateway.RootResourceId
+      PathPart: "{proxy+}"
+      RestApiId: !Ref APIGateway
+
+  APIGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      HttpMethod: ANY
+      ResourceId: !Ref APIGatewayResource
+      RestApiId: !Ref APIGateway
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunction.Arn}/invocations"
+
+  APIGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - APIGatewayMethod
+    Properties:
+      RestApiId: !Ref APIGateway
+      StageName: !Ref APIGatewayStageName
+
+  LambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${APIGateway}/*/*"
