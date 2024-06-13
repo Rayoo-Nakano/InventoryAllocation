@@ -26,8 +26,6 @@ logger.addHandler(console_handler)
 # FastAPI アプリケーションのインスタンスを作成
 app = FastAPI()
 
-# Lambda関数のエントリーポイント
-handler = Mangum(app)
 
 COGNITO_PUBLIC_KEYS = {
     "key_id_1": "public_key_1",
@@ -145,3 +143,6 @@ def read_allocation_results(db: Session = Depends(get_db), token_payload: TokenP
     """
     allocation_results = db.query(AllocationResult).all()
     return allocation_results
+
+# Lambda関数のエントリーポイント
+handler = Mangum(app)
