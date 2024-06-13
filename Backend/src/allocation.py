@@ -17,7 +17,7 @@ def allocate_inventory(db: Session, strategy: str):
     orders = db.query(Order).filter(Order.allocated == False).all()
 
     for order in orders:
-        logger.info(f"Processing order {order.order_id} with item code {order.item_code} and quantity {order.quantity}")
+        logger.info(f"Processing order {order.id} with item code {order.item_code} and quantity {order.quantity}")
 
         # 在庫を取得
         inventories = db.query(Inventory).filter(Inventory.item_code == order.item_code).order_by(Inventory.id).all()
@@ -38,7 +38,7 @@ def allocate_inventory(db: Session, strategy: str):
         else:
             raise ValueError(f"Unknown allocation strategy: {strategy}")
 
-        logger.info(f"Allocation completed for order {order.order_id}")
+        logger.info(f"Allocation completed for order {order.id}")
         order.allocated = True
 
     db.commit()
@@ -204,12 +204,12 @@ def create_allocation_result(db: Session, order: Order, allocated_quantity: int,
     :param allocated_price: 割り当てた価格
     """
     allocation_result = AllocationResult(
-        order_id=order.order_id,
+        order_id=order.id,
         allocated_quantity=allocated_quantity,
         allocated_price=allocated_price
     )
     db.add(allocation_result)
-    logger.info(f"Created allocation result for order {order.order_id} with allocated quantity {allocated_quantity} and price {allocated_price}")
+    logger.info(f"Created allocation result for order {order.id} with allocated quantity {allocated_quantity} and price {allocated_price}")
 
 def main():
     """
