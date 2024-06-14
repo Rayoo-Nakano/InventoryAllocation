@@ -1,3 +1,5 @@
+Note）本設計書及びプログラムの最新版はGitHubの[Rayoo-Nakano/InventoryAllocation](https://github.com/Rayoo-Nakano/InventoryAllocation "Rayoo-Nakano/InventoryAllocation")に常時更新しています。
+
 # CI/CD Pipeline for Lambda
 
 ## 1. はじめに

@@ -1,3 +1,6 @@
+Note）本設計書及びプログラムの最新版はGitHubの[Rayoo-Nakano/InventoryAllocation](https://github.com/Rayoo-Nakano/InventoryAllocation "Rayoo-Nakano/InventoryAllocation")に常時更新しています。
+
+
 # 在庫管理システム基本設計書
 
 ## 1. 概要
@@ -28,15 +31,16 @@
 ### 3.1 システムアーキテクチャ
 ```mermaid
 graph LR
-    A[クライアント] --> B[React]
+graph LR
+    A[Client] --> B[React]
     B --> C[API Gateway]
     C --> D[Lambda]
     D --> E[FastAPI]
     E --> F[SQLAlchemy]
     F --> G[Amazon RDS]
     C --> H[Amazon Cognito]
-    I[AWS CloudFormation] --> J[インフラストラクチャ]
-    K[AWS CodePipeline] --> L[ビルド・テスト・デプロイメント]
+    I[AWS CloudFormation] --> J[Infrastructure]
+    K[AWS CodePipeline] --> L[Build/Test/Deployment]
 ```
 
 このシステムアーキテクチャ図は、在庫管理システムの主要なコンポーネントとその関係を示しています。クライアントはReactを使用してUIを構築し、API GatewayとAmazon Cognitoを介してLambdaにアクセスします。LambdaはFastAPIを呼び出し、FastAPIはSQLAlchemyを使用してAmazon RDSとやり取りします。AWS CloudFormationを使用してインフラストラクチャをコード化し、AWS CodePipelineを使用してCI/CDパイプラインを構築します。
@@ -368,7 +372,7 @@ sequenceDiagram
 - パフォーマンスとスケーラビリティのテストと最適化
 
 ## 9. 参考資料
-- React公式ドキュメント: https://reactjs.org/docs/
+- React公式ドキュメント: https://react.dev/
 - FastAPI公式ドキュメント: https://fastapi.tiangolo.com/
 - SQLAlchemy公式ドキュメント: https://docs.sqlalchemy.org/
 - Amazon Cognito公式ドキュメント: https://aws.amazon.com/jp/cognito/
