@@ -2,6 +2,7 @@ Note）本設計書及びプログラムの最新版はGitHubの[Rayoo-Nakano/In
 
 # CI/CD Pipeline for Lambda
 
+
 ## 1. はじめに
 
 本設計書では、AWS Lambda環境におけるCI/CDパイプラインの構築について説明します。CI/CDパイプラインを導入することで、Lambdaファンクションの開発、テスト、デプロイを自動化し、効率的かつ安全にアプリケーションを運用することができます。
