@@ -4,14 +4,16 @@ Description: !Sub 'CI/CD Pipeline for ${ProjectDescription}'
 Parameters:
   ProjectName:
     Type: String
-    Default: 'inventory-allocation'  # プロジェクト名のデフォルト値
+    Default: 'InventoryAlloc'  # プロジェクト名のデフォルト値
   ProjectDescription:
     Type: String
     Default: 'Inventory Allocation System'  # プロジェクトの説明のデフォルト値
   GitHubOwner:
     Type: String
+    Default: 'Rayoo-Nakano'  # GitHubのオーナー名のデフォルト値
   GitHubRepository:
     Type: String
+    Default: 'InventoryAllocation'  # GitHubのリポジトリ名のデフォルト値
   GitHubBranch:
     Type: String
     Default: 'main'  # GitHubのブランチ名のデフォルト値
@@ -26,12 +28,20 @@ Parameters:
     Type: String
   EnvironmentVariable2:
     Type: String
+  ArtifactStoreBucketName:
+    Type: String
+    Default: 'hn-inventoryallocation'  # アーティファクトストアのS3バケット名のデフォルト値
 
 Resources:
+  ArtifactStoreBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Ref ArtifactStoreBucketName  # アーティファクトストアのS3バケットを作成
+
   LambdaStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateOnPipeline.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucketName}/${ProjectName}/CICDLambdaCreateOnPipeline.yml"  # Lambda関数のCloudFormationテンプレートのURL
       Parameters:
         ProjectName: !Ref ProjectName
         EnvironmentVariable1: !Ref EnvironmentVariable1
@@ -143,7 +153,7 @@ Resources:
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
       ArtifactStore:
         Type: S3
-        Location: !Ref ArtifactStoreBucket
+        Location: !Ref ArtifactStoreBucketName
       Stages:
         - Name: Source
           Actions:
@@ -188,6 +198,20 @@ Resources:
                 - Name: BuildOutput
         - Name: Deploy
           Actions:
+            - Name: CreateAppSpecFile
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                BucketName: !Ref ArtifactStoreBucketName
+                ObjectKey: 'appspec.yml'
+              InputArtifacts:
+                - Name: BuildOutput
+              OutputArtifacts:
+                - Name: AppSpecFile
+              RunOrder: 1  # アプリケーション仕様ファイルの作成を先に実行
             - Name: DeployAction
               ActionTypeId:
                 Category: Deploy
@@ -201,21 +225,7 @@ Resources:
                 - Name: BuildOutput
               OutputArtifacts:
                 - Name: AppSpecFile
-              RunOrder: 1
-            - Name: CreateAppSpecFile
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: S3
-                Version: '1'
-              Configuration:
-                BucketName: !Ref ArtifactStoreBucket
-                ObjectKey: 'appspec.yml'
-              InputArtifacts:
-                - Name: BuildOutput
-              OutputArtifacts:
-                - Name: AppSpecFile
-              RunOrder: 2
+              RunOrder: 2  # アプリケーションのデプロイを後に実行
 
   CodeDeployApplication:
     Type: 'AWS::CodeDeploy::Application'
@@ -229,7 +239,7 @@ Resources:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub '${ProjectName}-group'
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
-      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce  # デプロイメント設定
+      DeploymentConfig: !Ref CodeDeployDeploymentConfig  # デプロイメント設定
       DeploymentStyle:
         DeploymentType: BLUE_GREEN  # Blue/Greenデプロイメントタイプ
       AutoRollbackConfiguration:
@@ -248,7 +258,9 @@ Resources:
     Properties:
       DeploymentConfigName: !Sub '${ProjectName}-config'
       TrafficRoutingConfig:
-        Type: AllAtOnce  # トラフィックルーティング設定
+        Type: Linear  # トラフィックルーティング設定を段階的に行う
+        LinearPercentage: 10  # 10%ずつトラフィックをシフト
+        LinearInterval: 1  # 1分ごとにトラフィックをシフト
 
   CodeDeployServiceRole:
     Type: 'AWS::IAM::Role'
@@ -259,6 +271,7 @@ Resources:
           - Effect: Allow
             Principal:
               Service:
+                - codedeploy.
                 - codedeploy.amazonaws.com
             Action:
               - sts:AssumeRole
@@ -294,11 +307,6 @@ Resources:
                   - 'codedeploy:ListDeploymentTargets'
                   - 'codedeploy:PutLifecycleEventHookExecutionStatus'
                 Resource: '*'
-
-  ArtifactStoreBucket:
-    Type: 'AWS::S3::Bucket'
-    Properties:
-      BucketName: !Sub '${ProjectName}-artifact-store'
 
   LambdaErrorsAlarm:
     Type: 'AWS::CloudWatch::Alarm'
