@@ -1,0 +1,18 @@
+name: CICD Pipeline to AWS CloudFormation
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: CICD Pipeline to AWS CloudFormation
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        template: Backend/env/env_src/CICDPipelineForLambda.yml
+        stack-name: CICDPipelineForLambda.yml
