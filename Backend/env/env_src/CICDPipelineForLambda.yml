@@ -2,9 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: !Sub 'CI/CD Pipeline for ${ProjectDescription}'
 
 
-template-file-path: Backend/env/env_src/CICDparamerters.json
-parameters: {}
-tags: {}
 
 
 Parameters:
@@ -39,6 +36,10 @@ Parameters:
     Default: 'hn-inventoryallocation'  # アーティファクトストアのS3バケット名のデフォルト値
 
 Resources:
+    template-file-path: Backend/env/env_src/CICDparamerters.json
+    parameters: {}
+    tags: {}
+
   ArtifactStoreBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
