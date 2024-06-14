@@ -4,17 +4,17 @@ Description: !Sub 'CI/CD Pipeline for ${ProjectDescription}'
 Parameters:
   ProjectName:
     Type: String
-    Default: 'inventory-allocation'
+    Default: 'inventory-allocation'  # プロジェクト名の推奨値
   ProjectDescription:
     Type: String
-    Default: 'Inventory Allocation System'
+    Default: 'Inventory Allocation System'  # プロジェクトの説明の推奨値
   GitHubOwner:
     Type: String
   GitHubRepository:
     Type: String
   GitHubBranch:
     Type: String
-    Default: 'main'
+    Default: 'main'  # GitHubのブランチ名の推奨値
   GitHubOAuthToken:
     Type: String
     NoEcho: true
@@ -28,17 +28,15 @@ Parameters:
     Type: String
 
 Resources:
-  # Lambda関数のスタックを作成
   LambdaStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateInPipeline.yml"
+      TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateOnPipeline.yml"
       Parameters:
         ProjectName: !Ref ProjectName
         EnvironmentVariable1: !Ref EnvironmentVariable1
         EnvironmentVariable2: !Ref EnvironmentVariable2
 
-  # CodeBuildサービスロールを作成
   CodeBuildServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -73,7 +71,6 @@ Resources:
                   - 'lambda:UpdateAlias'
                 Resource: '*'
 
-  # CodeBuildプロジェクトを作成
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
     Properties:
@@ -84,8 +81,8 @@ Resources:
         Type: CODEPIPELINE
       Environment:
         Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: 'aws/codebuild/standard:4.0'
+        ComputeType: BUILD_GENERAL1_SMALL  # ビルド環境のコンピュートタイプの推奨値
+        Image: 'aws/codebuild/standard:4.0'  # ビルド環境のイメージの推奨値
         EnvironmentVariables:
           - Name: CODEARTIFACT_REPOSITORY_NAME
             Value: !Ref CodeArtifactRepositoryName
@@ -97,7 +94,6 @@ Resources:
         Type: CODEPIPELINE
         BuildSpec: 'buildspec.yml'
 
-  # CodePipelineサービスロールを作成
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -140,7 +136,6 @@ Resources:
                   - 'cloudformation:DeleteStack'
                 Resource: '*'
 
-  # CodePipelineを作成
   CodePipeline:
     Type: 'AWS::CodePipeline::Pipeline'
     Properties:
@@ -222,24 +217,21 @@ Resources:
                 - Name: AppSpecFile
               RunOrder: 2
 
-  # CodeDeployアプリケーションを作成
   CodeDeployApplication:
     Type: 'AWS::CodeDeploy::Application'
     Properties:
       ApplicationName: !Sub '${ProjectName}-app'
       ComputePlatform: Lambda
 
-  # CodeDeployデプロイメントグループを作成
   CodeDeployDeploymentGroup:
     Type: 'AWS::CodeDeploy::DeploymentGroup'
     Properties:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub '${ProjectName}-group'
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
-      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce
+      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce  # デプロイメント設定の推奨値
       DeploymentStyle:
-        DeploymentType: BLUE_GREEN
-        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: BLUE_GREEN  # デプロイメントタイプの推奨値
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -251,15 +243,13 @@ Resources:
           - !Ref LambdaErrorsAlarm
           - !Ref LambdaThrottlesAlarm
 
-  # CodeDeployデプロイメント設定を作成
   CodeDeployDeploymentConfig:
     Type: 'AWS::CodeDeploy::DeploymentConfig'
     Properties:
       DeploymentConfigName: !Sub '${ProjectName}-config'
       TrafficRoutingConfig:
-        Type: AllAtOnce
+        Type: AllAtOnce  # トラフィックルーティングタイプの推奨値
 
-  # CodeDeployサービスロールを作成
   CodeDeployServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -305,13 +295,11 @@ Resources:
                   - 'codedeploy:PutLifecycleEventHookExecutionStatus'
                 Resource: '*'
 
-  # アーティファクトストア用のS3バケットを作成
   ArtifactStoreBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
       BucketName: !Sub '${ProjectName}-artifact-store'
 
-  # Lambda関数のエラー率が閾値を超えた場合のアラームを作成
   LambdaErrorsAlarm:
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
@@ -323,7 +311,33 @@ Resources:
         - Name: FunctionName
           Value: !GetAtt LambdaStack.Outputs.LambdaFunction
       Statistic: Sum
-      Period: 60
-      EvaluationPeriods: 1
-      Threshold: 10
-      ComparisonOperator: GreaterThanOrEqualToTh
+      Period: 60  # メトリクスの集計期間の推奨値（秒）
+      EvaluationPeriods: 1  # アラームをトリガーするために必要な評価期間数の推奨値
+      Threshold: 10  # アラームをトリガーするエラー数のしきい値の推奨値
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # アラームの比較演算子の推奨値
+
+
+  LambdaThrottlesAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      AlarmName: !Sub '${ProjectName}-lambda-throttles'
+      AlarmDescription: 'Lambda function is being throttled'
+      Namespace: 'AWS/Lambda'
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !GetAtt LambdaStack.Outputs.LambdaFunction
+      Statistic: Sum
+      Period: 60  # メトリクスの集計期間の推奨値（秒）
+      EvaluationPeriods: 1  # アラームをトリガーするために必要な評価期間数の推奨値
+      Threshold: 0  # アラームをトリガーするスロットリング数のしきい値の推奨値
+      ComparisonOperator: GreaterThanThreshold  # アラームの比較演算子の推奨値
+
+Outputs:
+  CodePipelineUrl:
+    Description: 'CodePipeline URL'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${CodePipeline}'
+
+  LambdaAliasArn:
+    Description: 'Lambda Function Alias ARN'
+    Value: !GetAtt LambdaStack.Outputs.LambdaAliasArn

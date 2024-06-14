@@ -85,39 +85,32 @@ graph LR
 
 5. DeployActionでは `BuildOutput` と `AppSpecFile` を受け取り、CodeDeployを使ってLambda関数にデプロイします。
 
-## 4. IaCの構成
+## 4. CI/CD Pipelineの構成
 
 ### 4.1. ディレクトリ構造
 
 ```
 project-root/
 └── Backend/src/
-    └── lambda_functions
+      └── lambda_functions
 └── Backend/env/env_src
-    └── CICDPipelineForLambda.yml
-    └── CICDparamerters.json
-    └── CICDLambdaCreateInPipeline.yml
+        └── CICDPipelineForLambda.yml
+        └── CICDparamerters.json
+        └── CICDLambdaCreateOnPipeline.yml
 └── configuration/
     └── buildspec.yml
     └── appspec.yml
 ```
 
+- `Backend/src/lambda_function`: Lambdaファンクションのソースコード
+- `Backend/env/env_src/CICDPipelineForLambda.yml`: CICD Pipeline生成用IaC
+- `Backend/env/env_src/CICDparamerters.json`: CICD Pipeline生成用パラメータファイル
+- `Backend/env/env_src/CICDLambdaCreateOnPipeline.yml`: CICD Pipelineから呼び出されてLambda生成用IaC
+- `Backend/env/env_src/LambdaParameters.json`: Lambda生成用パラメータファイル
 - `buildspec.yml`: CodeBuildのビルド仕様ファイル
-- `template.yml`: CloudFormationテンプレートファイル
-- `src/lambda_function.py`: Lambdaファンクションのソースコード
+- `appspec.yml`: Codedeployのビルド仕様ファイル
 
-### 4.2. CloudFormationテンプレート
 
-`template.yml`は、以下のようなリソースを定義します。
-
-- AWS::Serverless::Function
-- AWS::ApiGateway::RestApi
-- AWS::S3::Bucket
-- AWS::CodePipeline::Pipeline
-- AWS::CodeBuild::Project
-- AWS::CodeDeploy::Application
-- AWS::CodeDeploy::DeploymentGroup
-- AWS::IAM::Role
 
 ## 5. リソース定義
 
