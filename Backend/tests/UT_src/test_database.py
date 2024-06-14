@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(grandparent_dir, 'Backend', 'src'))
 import pytest
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 from database import Base, get_db
 
@@ -45,3 +46,19 @@ def test_create_tables():
     assert "orders" in tables
     assert "inventories" in tables
     assert "allocation_results" in tables
+
+def test_database_connection_failure():
+    INVALID_DATABASE_URL = "sqlite:///invalid.db"
+    with pytest.raises(SQLAlchemyError):
+        engine = create_engine(INVALID_DATABASE_URL)
+        TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        db = TestingSessionLocal()
+        inspector = inspect(db.bind)
+
+def test_create_tables_failure():
+    class InvalidBase:
+        pass
+
+    with pytest.raises(SQLAlchemyError):
+        engine = create_engine(SQLALCHEMY_DATABASE_URL)
+        InvalidBase.metadata.create_all(bind=engine)

@@ -1,19 +1,22 @@
 from fastapi.testclient import TestClient
-from main import app, get_db, authenticate_token
-from models import Order, Inventory, AllocationResult
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import date
-from schemas import InventoryRequest, OrderRequest
-from unittest import mock
+from main import app, get_db
+from models import Base
 
+# テスト用のデータベースURLを設定
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
+# テスト用のデータベースエンジンを作成
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# テスト用のデータベースにテーブルを作成
+Base.metadata.create_all(bind=engine)
+
+# テスト用のデータベースセッションを作成
 def override_get_db():
     try:
         db = TestingSessionLocal()
@@ -21,87 +24,95 @@ def override_get_db():
     finally:
         db.close()
 
+# アプリケーションのデータベースセッションをテスト用のセッションでオーバーライド
 app.dependency_overrides[get_db] = override_get_db
 
+# テスト用のクライアントを作成
 client = TestClient(app)
 
+# 注文の作成テスト
 def test_create_order():
-    """
-    注文の作成をテストする関数
-    """
-    order_data = OrderRequest(item_code="ABC123", quantity=5)
-    
-    with mock.patch("main.authenticate_token") as mock_authenticate_token:
-        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
-        
-        headers = {"Authorization": "Bearer mock_token"}
-        response = client.post("/orders", json=order_data.dict(), headers=headers)
-        assert response.status_code == 201  # ここを200から201に変更
-        assert response.json()["item_code"] == "ABC123"
-        assert response.json()["quantity"] == 5
+    response = client.post(
+        "/orders/",
+        json={"customer_id": 1, "product_id": 1, "quantity": 5},
+    )
+    assert response.status_code == 201
+    assert response.json()["customer_id"] == 1
+    assert response.json()["product_id"] == 1
+    assert response.json()["quantity"] == 5
 
+# 注文の取得テスト
 def test_get_orders():
-    """
-    注文の取得をテストする関数
-    """
-    with mock.patch("main.authenticate_token") as mock_authenticate_token:
-        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
-        
-        headers = {"Authorization": "Bearer mock_token"}
-        response = client.get("/orders", headers=headers)
-        assert response.status_code == 200
-        assert len(response.json()) >= 0
+    response = client.get("/orders/")
+    assert response.status_code == 200
+    assert len(response.json()) > 0
 
+# 在庫の作成テスト
 def test_create_inventory():
-    """
-    在庫の作成をテストする関数
-    """
-    inventory_data = InventoryRequest(item_code="XYZ789", quantity=10, receipt_date="2023-06-01", unit_price=9.99)
-    
-    with mock.patch("main.authenticate_token") as mock_authenticate_token:
-        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
-        
-        headers = {"Authorization": "Bearer mock_token"}
-        response = client.post("/inventories", json=inventory_data.dict(), headers=headers)
-        assert response.status_code == 201  # ここを200から201に変更 
-        assert response.json()["item_code"] == "XYZ789"
-        assert response.json()["quantity"] == 10
-        assert response.json()["receipt_date"] == "2023-06-01"
-        assert response.json()["unit_price"] == 9.99
+    response = client.post(
+        "/inventories/",
+        json={"product_id": 1, "quantity": 100},
+    )
+    assert response.status_code == 201
+    assert response.json()["product_id"] == 1
+    assert response.json()["quantity"] == 100
 
+# 在庫の取得テスト
 def test_get_inventories():
-    """
-    在庫の取得をテストする関数
-    """
-    with mock.patch("main.authenticate_token") as mock_authenticate_token:
-        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
-        
-        headers = {"Authorization": "Bearer mock_token"}
-        response = client.get("/inventories", headers=headers)
-        assert response.status_code == 200
-        assert len(response.json()) >= 0
+    response = client.get("/inventories/")
+    assert response.status_code == 200
+    assert len(response.json()) > 0
 
+# 在庫の割り当てテスト
 def test_allocate_inventory():
-    """
-    在庫の割り当てをテストする関数
-    """
-    order_data = OrderRequest(item_code="ABC123", quantity=5)
-    inventory_data = InventoryRequest(item_code="ABC123", quantity=10, receipt_date="2023-06-01", unit_price=9.99)
-    
-    with mock.patch("main.authenticate_token") as mock_authenticate_token:
-        mock_authenticate_token.return_value = {"sub": "user_id", "scope": "openid"}
-        
-        headers = {"Authorization": "Bearer mock_token"}
-        
-        # 在庫を作成
-        client.post("/inventories", json=inventory_data.dict(), headers=headers)
-        
-        # 注文を作成
-        response = client.post("/orders", json=order_data.dict(), headers=headers)
-        order_id = response.json()["order_data"]["id"]  # 型のキャストは不要
-        
-        # 在庫を割り当て
-        response = client.post(f"/orders/{order_id}/allocate", headers=headers)
-        assert response.status_code == 200
-        assert response.json()["allocated_quantity"] == 5
-        assert response.json()["allocated_price"] == 9.99
+    # 在庫を作成
+    client.post(
+        "/inventories/",
+        json={"product_id": 1, "quantity": 100},
+    )
+
+    # 注文を作成
+    order_response = client.post(
+        "/orders/",
+        json={"customer_id": 1, "product_id": 1, "quantity": 5},
+    )
+    order_id = order_response.json()["id"]
+
+    # 在庫を割り当て
+    response = client.post(f"/orders/{order_id}/allocate")
+    assert response.status_code == 200
+    assert response.json()["allocated_quantity"] == 5
+
+# 無効な注文データの作成テスト
+def test_create_invalid_order():
+    response = client.post(
+        "/orders/",
+        json={"customer_id": 1, "product_id": 1, "quantity": -5},
+    )
+    assert response.status_code == 400
+
+# 存在しない注文の取得テスト
+def test_get_nonexistent_order():
+    response = client.get("/orders/999")
+    assert response.status_code == 404
+
+# 無効な在庫データの作成テスト
+def test_create_invalid_inventory():
+    response = client.post(
+        "/inventories/",
+        json={"product_id": 1, "quantity": -100},
+    )
+    assert response.status_code == 400
+
+# 在庫不足の割り当てテスト
+def test_allocate_insufficient_inventory():
+    # 注文を作成
+    order_response = client.post(
+        "/orders/",
+        json={"customer_id": 1, "product_id": 1, "quantity": 200},
+    )
+    order_id = order_response.json()["id"]
+
+    # 在庫を割り当て
+    response = client.post(f"/orders/{order_id}/allocate")
+    assert response.status_code == 400
