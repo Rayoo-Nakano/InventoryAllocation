@@ -4,29 +4,20 @@ Description: !Sub 'CI/CD Pipeline for ${ProjectDescription}'
 Parameters:
   ProjectName:
     Type: String
-    Default: 'inventory-allocation'  # プロジェクト名の推奨値
+    Default: 'inventory-allocation'  # プロジェクト名のデフォルト値
   ProjectDescription:
     Type: String
-    Default: 'Inventory Allocation System'  # プロジェクトの説明の推奨値
+    Default: 'Inventory Allocation System'  # プロジェクトの説明のデフォルト値
   GitHubOwner:
     Type: String
   GitHubRepository:
     Type: String
   GitHubBranch:
     Type: String
-    Default: 'main'  # GitHubのブランチ名の推奨値
-  
-  GitHubOAuthToken:
-    Type: String
-    NoEcho: true
-  # AWS System Managerから取得するパラメータ
-  #  GitHubOAuthToken:
-  #  Type: String
-  #  NoEcho: true
+    Default: 'main'  # GitHubのブランチ名のデフォルト値
   GitHubOAuthTokenParameter:
     Type: AWS::SSM::Parameter::Value<String>
-    Default: /github/InventoryAllocation/oauth-token
-
+    Default: /github/InventoryAllocation/oauth-token  # GitHubのOAuthトークンのSSMパラメータ名
   CodeArtifactRepositoryName:
     Type: String
   LambdaAlias:
@@ -39,6 +30,7 @@ Parameters:
 Resources:
   LambdaStack:
     Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateOnPipeline.yml"
       Parameters:
@@ -90,8 +82,8 @@ Resources:
         Type: CODEPIPELINE
       Environment:
         Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL  # ビルド環境のコンピュートタイプの推奨値
-        Image: 'aws/codebuild/standard:4.0'  # ビルド環境のイメージの推奨値
+        ComputeType: BUILD_GENERAL1_SMALL  # ビルド環境のコンピュートタイプ
+        Image: 'aws/codebuild/standard:4.0'  # ビルド環境のイメージ
         EnvironmentVariables:
           - Name: CODEARTIFACT_REPOSITORY_NAME
             Value: !Ref CodeArtifactRepositoryName
@@ -238,9 +230,9 @@ Resources:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub '${ProjectName}-group'
       ServiceRoleArn: !GetAtt CodeDeployServiceRole.Arn
-      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce  # デプロイメント設定の推奨値
+      DeploymentConfig: CodeDeployDefault.LambdaAllAtOnce  # デプロイメント設定
       DeploymentStyle:
-        DeploymentType: BLUE_GREEN  # デプロイメントタイプの推奨値
+        DeploymentType: BLUE_GREEN  # Blue/Greenデプロイメントタイプ
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -257,7 +249,7 @@ Resources:
     Properties:
       DeploymentConfigName: !Sub '${ProjectName}-config'
       TrafficRoutingConfig:
-        Type: AllAtOnce  # トラフィックルーティングタイプの推奨値
+        Type: AllAtOnce  # トラフィックルーティング設定
 
   CodeDeployServiceRole:
     Type: 'AWS::IAM::Role'
@@ -306,47 +298,38 @@ Resources:
 
   ArtifactStoreBucket:
     Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain  # スタック削除時にバケットを保持する
     Properties:
       BucketName: !Sub '${ProjectName}-artifact-store'
 
   LambdaErrorsAlarm:
-    Type: 'AWS::CloudWatch::Alarm'
+    Type: 'AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub '${ProjectName}-lambda-errors'
-      AlarmDescription: 'Lambda function error rate exceeds threshold'
+      AlarmDescription: 'Lambda関数のエラー率がしきい値を超えました'  # アラームの説明
       Namespace: 'AWS/Lambda'
       MetricName: Errors
       Dimensions:
         - Name: FunctionName
           Value: !GetAtt LambdaStack.Outputs.LambdaFunction
       Statistic: Sum
-      Period: 60  # メトリクスの集計期間の推奨値（秒）
-      EvaluationPeriods: 1  # アラームをトリガーするために必要な評価期間数の推奨値
-      Threshold: 10  # アラームをトリガーするエラー数のしきい値の推奨値
-      ComparisonOperator: GreaterThanOrEqualToThreshold  # アラームの比較演算子の推奨値
-
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # エラー率がしきい値以上の場合にアラームを発生させる
 
   LambdaThrottlesAlarm:
     Type: 'AWS::CloudWatch::Alarm'
     Properties:
       AlarmName: !Sub '${ProjectName}-lambda-throttles'
-      AlarmDescription: 'Lambda function is being throttled'
+      AlarmDescription: 'Lambda関数のスロットリング率がしきい値を超えました'  # アラームの説明
       Namespace: 'AWS/Lambda'
       MetricName: Throttles
       Dimensions:
         - Name: FunctionName
           Value: !GetAtt LambdaStack.Outputs.LambdaFunction
       Statistic: Sum
-      Period: 60  # メトリクスの集計期間の推奨値（秒）
-      EvaluationPeriods: 1  # アラームをトリガーするために必要な評価期間数の推奨値
-      Threshold: 0  # アラームをトリガーするスロットリング数のしきい値の推奨値
-      ComparisonOperator: GreaterThanThreshold  # アラームの比較演算子の推奨値
-
-Outputs:
-  CodePipelineUrl:
-    Description: 'CodePipeline URL'
-    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${CodePipeline}'
-
-  LambdaAliasArn:
-    Description: 'Lambda Function Alias ARN'
-    Value: !GetAtt LambdaStack.Outputs.LambdaAliasArn
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # スロットリング率がしきい値以上の場合にアラームを発生させる
