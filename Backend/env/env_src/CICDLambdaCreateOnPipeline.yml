@@ -67,7 +67,7 @@ Resources:
       VpcConfig:
         SubnetIds:
           - !Ref PrivateSubnet1Id
-          - !Ref PrivateSubnet2Id
+#          - !Ref PrivateSubnet2Id
         SecurityGroupIds:
           - !Ref LambdaSecurityGroup
     DeletionPolicy: Retain
