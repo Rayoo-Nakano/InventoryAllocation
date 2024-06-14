@@ -30,7 +30,6 @@ Parameters:
 Resources:
   LambdaStack:
     Type: AWS::CloudFormation::Stack
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       TemplateURL: !Sub "https://s3.amazonaws.com/${ArtifactStoreBucket}/${ProjectName}/CICDLambdaCreateOnPipeline.yml"
       Parameters:
@@ -40,7 +39,6 @@ Resources:
 
   CodeBuildServiceRole:
     Type: 'AWS::IAM::Role'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -75,7 +73,6 @@ Resources:
 
   CodeBuildProject:
     Type: 'AWS::CodeBuild::Project'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       Name: !Sub '${ProjectName}-build'
       Description: !Sub 'Build project for ${ProjectDescription}'
@@ -99,7 +96,6 @@ Resources:
 
   CodePipelineServiceRole:
     Type: 'AWS::IAM::Role'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -142,7 +138,6 @@ Resources:
 
   CodePipeline:
     Type: 'AWS::CodePipeline::Pipeline'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       Name: !Sub '${ProjectName}-pipeline'
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
@@ -224,14 +219,12 @@ Resources:
 
   CodeDeployApplication:
     Type: 'AWS::CodeDeploy::Application'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       ApplicationName: !Sub '${ProjectName}-app'
       ComputePlatform: Lambda
 
   CodeDeployDeploymentGroup:
     Type: 'AWS::CodeDeploy::DeploymentGroup'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       ApplicationName: !Ref CodeDeployApplication
       DeploymentGroupName: !Sub '${ProjectName}-group'
@@ -252,7 +245,6 @@ Resources:
 
   CodeDeployDeploymentConfig:
     Type: 'AWS::CodeDeploy::DeploymentConfig'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       DeploymentConfigName: !Sub '${ProjectName}-config'
       TrafficRoutingConfig:
@@ -260,7 +252,6 @@ Resources:
 
   CodeDeployServiceRole:
     Type: 'AWS::IAM::Role'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -306,13 +297,11 @@ Resources:
 
   ArtifactStoreBucket:
     Type: 'AWS::S3::Bucket'
-    DeletionPolicy: Retain  # スタック削除時にバケットを保持する
     Properties:
       BucketName: !Sub '${ProjectName}-artifact-store'
 
   LambdaErrorsAlarm:
     Type: 'AWS::CloudWatch::Alarm'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       AlarmName: !Sub '${ProjectName}-lambda-errors'
       AlarmDescription: 'Lambda関数のエラー率がしきい値を超えました'  # アラームの説明
@@ -329,7 +318,6 @@ Resources:
 
   LambdaThrottlesAlarm:
     Type: 'AWS::CloudWatch::Alarm'
-    DeletionPolicy: Retain  # スタック削除時にリソースを保持する
     Properties:
       AlarmName: !Sub '${ProjectName}-lambda-throttles'
       AlarmDescription: 'Lambda関数のスロットリング率がしきい値を超えました'  # アラームの説明
