@@ -15,9 +15,18 @@ Parameters:
   GitHubBranch:
     Type: String
     Default: 'main'  # GitHubのブランチ名の推奨値
+  
   GitHubOAuthToken:
     Type: String
     NoEcho: true
+  # AWS System Managerから取得するパラメータ
+  #  GitHubOAuthToken:
+  #  Type: String
+  #  NoEcho: true
+  GitHubOAuthTokenParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /github/InventoryAllocation/oauth-token
+
   CodeArtifactRepositoryName:
     Type: String
   LambdaAlias:
@@ -157,7 +166,7 @@ Resources:
                 Owner: !Ref GitHubOwner
                 Repo: !Ref GitHubRepository
                 Branch: !Ref GitHubBranch
-                OAuthToken: !Ref GitHubOAuthToken
+                OAuthToken: !Ref GitHubOAuthTokenParameter
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: CheckLambdaFunction

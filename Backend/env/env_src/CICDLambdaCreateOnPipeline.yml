@@ -44,9 +44,14 @@ Parameters:
   GitHubBranch:
     Type: String
     Description: GitHubブランチ名
-  GitHubOAuthToken:
-    Type: String
-    Description: GitHubのOAuthトークン
+
+  # AWS System Managerから取得するパラメータ
+  #  GitHubOAuthToken:
+  #  Type: String
+  #  Description: GitHubのOAuthトークン
+  GitHubOAuthTokenParameter:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /github/InventoryAllocation/oauth-token
 
 Resources:
   LambdaFunction:
