@@ -4,6 +4,5 @@
     "GitHubOwner": "your-github-username",
     "GitHubRepository": "your-github-repository",
     "GitHubBranch": "main",
-    "GitHubOAuthToken": "your-github-oauth-token"
   }
   
